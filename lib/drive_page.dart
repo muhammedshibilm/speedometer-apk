@@ -27,11 +27,15 @@ class _DrivePageState extends State<DrivePage> {
   Duration _tripDuration = Duration.zero;
 
   final List<double> _recentSpeeds = [];
+  final List<double> _allSpeeds = []; // ✅ full trip speeds
+
   static const int _stabilityWindow = 8;
   static const double _maxSpeed = 160;
 
   Position? _lastPosition;
   bool _tracking = false;
+
+  final TextEditingController _controller = TextEditingController();
 
   // ---------------- TRIP CONTROL ----------------
 
@@ -48,6 +52,7 @@ class _DrivePageState extends State<DrivePage> {
       _accuracy = 999;
       _tripDuration = Duration.zero;
       _recentSpeeds.clear();
+      _allSpeeds.clear();
       _lastPosition = null;
     });
 
@@ -74,9 +79,7 @@ class _DrivePageState extends State<DrivePage> {
     _positionStream = null;
     _tripTimer = null;
 
-    setState(() {
-      _tracking = false;
-    });
+    setState(() => _tracking = false);
   }
 
   // ---------------- GPS ----------------
@@ -100,6 +103,8 @@ class _DrivePageState extends State<DrivePage> {
     _lastPosition = p;
 
     _recentSpeeds.add(speed);
+    _allSpeeds.add(speed);
+
     if (_recentSpeeds.length > _stabilityWindow) {
       _recentSpeeds.removeAt(0);
     }
@@ -114,16 +119,17 @@ class _DrivePageState extends State<DrivePage> {
   // ---------------- SAVE TRIP ----------------
 
   void _saveTrip() async {
-    if (_tripDuration.inSeconds < 5 || _distance < 10) return;
+    final name = _controller.text.trim();
+    if (name.isEmpty || _tripDuration.inSeconds < 1) return;
 
-    final avgSpeed = _recentSpeeds.isEmpty
+    final avgSpeed = _allSpeeds.isEmpty
         ? 0.0
-        : _recentSpeeds.reduce((a, b) => a + b) / _recentSpeeds.length;
+        : _allSpeeds.reduce((a, b) => a + b) / _allSpeeds.length;
 
-    final maxSpeed =
-        _recentSpeeds.isEmpty ? 0.0 : _recentSpeeds.reduce(max).toDouble();
+    final maxSpeed = _allSpeeds.isEmpty ? 0.0 : _allSpeeds.reduce(max);
 
     final trip = TripModel(
+      name: name,
       startTime: DateTime.now().subtract(_tripDuration),
       durationSeconds: _tripDuration.inSeconds,
       distanceKm: _distance / 1000,
@@ -131,63 +137,59 @@ class _DrivePageState extends State<DrivePage> {
       maxSpeed: maxSpeed,
     );
 
-    final box = Hive.box<TripModel>('trips');
-    await box.add(trip);
+    await Hive.box<TripModel>('trips').add(trip);
   }
 
   Future<void> _confirmSaveTrip() async {
-    await showModalBottomSheet(
+    _controller.clear();
+
+    showDialog(
       context: context,
-      backgroundColor: Colors.grey.shade900,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-      ),
-      builder: (_) {
-        return Padding(
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                'Save this trip?',
-                style: GoogleFonts.inter(
-                  color: Colors.white,
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              const SizedBox(height: 20),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.green,
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                  ),
-                  onPressed: () {
-                    _saveTrip();
-                    Navigator.pop(context);
-                  },
-                  child: const Text('SAVE TRIP'),
-                ),
-              ),
-              const SizedBox(height: 8),
-              SizedBox(
-                width: double.infinity,
-                child: TextButton(
-                  onPressed: () {
-                    Navigator.pop(context);
-                  },
-                  child: Text(
-                    'DISCARD',
-                    style: GoogleFonts.inter(color: Colors.redAccent),
-                  ),
-                ),
-              ),
-            ],
+      builder: (_) => AlertDialog(
+        backgroundColor: Colors.grey.shade900,
+        title: Text(
+          'Save trip',
+          textAlign: TextAlign.center,
+          style: GoogleFonts.inter(
+            color: Colors.white,
+            fontWeight: FontWeight.w600,
           ),
-        );
-      },
+        ),
+        content: TextField(
+          controller: _controller,
+          autofocus: true,
+          style: const TextStyle(color: Colors.white),
+          decoration: InputDecoration(
+            hintText: 'Enter trip name',
+            hintStyle: const TextStyle(color: Colors.grey),
+            filled: true,
+            fillColor: Colors.black,
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+              borderSide: BorderSide.none,
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              _controller.clear();
+              Navigator.pop(context);
+            },
+            child: Text('DISCARD',
+                style: GoogleFonts.inter(color: Colors.redAccent)),
+          ),
+          TextButton(
+            onPressed: () {
+              if (_controller.text.trim().isEmpty) return;
+              _saveTrip();
+              _controller.clear();
+              Navigator.pop(context);
+            },
+            child: const Text('SAVE'),
+          ),
+        ],
+      ),
     );
   }
 
@@ -195,6 +197,7 @@ class _DrivePageState extends State<DrivePage> {
 
   Color get _stabilityColor {
     if (_recentSpeeds.length < 2) return Colors.green;
+
     final avg = _recentSpeeds.reduce((a, b) => a + b) / _recentSpeeds.length;
     final variance =
         _recentSpeeds.map((s) => pow(s - avg, 2)).reduce((a, b) => a + b) /
@@ -229,32 +232,44 @@ class _DrivePageState extends State<DrivePage> {
       color = Colors.red;
     }
 
-    return Row(
+    return Column(
       children: [
+        Text('SIGNAL',
+            style: GoogleFonts.inter(color: Colors.grey, fontSize: 11)),
+        const SizedBox(height: 6),
         Row(
-          crossAxisAlignment: CrossAxisAlignment.end,
-          children: List.generate(4, (i) {
-            return Container(
-              width: 4,
-              height: 6 + i * 4,
-              margin: const EdgeInsets.only(right: 2),
-              decoration: BoxDecoration(
-                color: i < bars ? color : Colors.grey.shade700,
-                borderRadius: BorderRadius.circular(2),
-              ),
-            );
-          }),
-        ),
-        const SizedBox(width: 6),
-        Text(
-          '±${_accuracy.toStringAsFixed(0)} m',
-          style: GoogleFonts.inter(
-            color: Colors.grey,
-            fontSize: 12,
-          ),
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: List.generate(4, (i) {
+                return Container(
+                  width: 4,
+                  height: 6 + i * 4,
+                  margin: const EdgeInsets.only(right: 2),
+                  decoration: BoxDecoration(
+                    color: i < bars ? color : Colors.grey.shade700,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                );
+              }),
+            ),
+            const SizedBox(width: 6),
+            Text(
+              '±${_accuracy.toStringAsFixed(0)} m',
+              style: GoogleFonts.inter(color: Colors.grey, fontSize: 12),
+            ),
+          ],
         ),
       ],
     );
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    _positionStream?.cancel();
+    _tripTimer?.cancel();
+    super.dispose();
   }
 
   // ---------------- BUILD ----------------
@@ -267,20 +282,7 @@ class _DrivePageState extends State<DrivePage> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            // TOP
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  _infoBlock(
-                    'DIST',
-                    '${(_distance / 1000).toStringAsFixed(2)} km',
-                  ),
-                  _gpsSignalWidget()
-                ],
-              ),
-            ),
+            const SizedBox(height: 10),
 
             // SPEED
             Stack(
@@ -306,13 +308,9 @@ class _DrivePageState extends State<DrivePage> {
                         color: Colors.white,
                       ),
                     ),
-                    Text(
-                      'km/h',
-                      style: GoogleFonts.inter(
-                        color: Colors.grey,
-                        fontSize: 16,
-                      ),
-                    ),
+                    Text('km/h',
+                        style: GoogleFonts.inter(
+                            color: Colors.grey, fontSize: 16)),
                     const SizedBox(height: 8),
                     Container(
                       width: 72,
@@ -327,42 +325,62 @@ class _DrivePageState extends State<DrivePage> {
               ],
             ),
 
-            // TIMER + BUTTON
             Padding(
-              padding: const EdgeInsets.only(bottom: 20),
+              padding: const EdgeInsets.symmetric(horizontal: 14),
               child: Column(
                 children: [
-                  Text(
-                    _formatDuration(_tripDuration),
-                    style: GoogleFonts.inter(
-                      color: Colors.grey,
-                      fontSize: 14,
-                      letterSpacing: 1.1,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  ElevatedButton(
-                    style: ElevatedButton.styleFrom(
-                        backgroundColor: _tracking ? Colors.red : Colors.green,
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 44,
-                          vertical: 12,
-                        )),
-                    onPressed: _tracking
-                        ? () {
-                            _stopTrackingOnly();
-                            _confirmSaveTrip();
-                          }
-                        : _startTrip,
-                    child: Text(
-                      _tracking ? 'END TRIP' : 'START TRIP',
-                      style: GoogleFonts.inter(
-                        fontWeight: FontWeight.w600,
-                        color: Colors.white,
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceAround,
+                    children: [
+                      _infoBlock(
+                        'DISTANCE',
+                        '${(_distance / 1000).toStringAsFixed(2)} km',
                       ),
-                    ),
+                      _gpsSignalWidget(),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  Column(
+                    children: [
+                      Text('TIMER',
+                          style: GoogleFonts.inter(
+                              color: Colors.grey, fontSize: 11)),
+                      const SizedBox(height: 6),
+                      Text(
+                        _formatDuration(_tripDuration),
+                        style: GoogleFonts.inter(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w600,
+                          fontSize: 24,
+                        ),
+                      ),
+                    ],
                   ),
                 ],
+              ),
+            ),
+
+            Padding(
+              padding: const EdgeInsets.only(bottom: 20),
+              child: ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: _tracking ? Colors.red : Colors.green,
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 44, vertical: 12),
+                ),
+                onPressed: _tracking
+                    ? () {
+                        _stopTrackingOnly();
+                        _confirmSaveTrip();
+                      }
+                    : _startTrip,
+                child: Text(
+                  _tracking ? 'END TRIP' : 'START TRIP',
+                  style: GoogleFonts.inter(
+                    fontWeight: FontWeight.w600,
+                    color: Colors.white,
+                  ),
+                ),
               ),
             ),
           ],
@@ -373,15 +391,15 @@ class _DrivePageState extends State<DrivePage> {
 
   Widget _infoBlock(String label, String value) {
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(label, style: GoogleFonts.inter(color: Colors.grey, fontSize: 11)),
+        const SizedBox(height: 4),
         Text(
           value,
           style: GoogleFonts.inter(
             color: Colors.white,
             fontWeight: FontWeight.w600,
-            fontSize: 14,
+            fontSize: 24,
           ),
         ),
       ],

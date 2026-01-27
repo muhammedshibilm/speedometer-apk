@@ -155,6 +155,17 @@ class _TripTile extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
+                trip.name.trim(),
+                style: GoogleFonts.inter(
+                  color: Colors.white,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              SizedBox(
+                height: 10,
+              ),
+              Text(
                 '${trip.distanceKm.toStringAsFixed(2)} km',
                 style: GoogleFonts.inter(
                   color: Colors.white,

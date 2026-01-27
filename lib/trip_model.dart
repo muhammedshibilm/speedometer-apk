@@ -19,11 +19,14 @@ class TripModel extends HiveObject {
   @HiveField(4)
   double maxSpeed;
 
-  TripModel({
-    required this.startTime,
-    required this.durationSeconds,
-    required this.distanceKm,
-    required this.avgSpeed,
-    required this.maxSpeed,
-  });
+  @HiveField(5)
+  String name;
+
+  TripModel(
+      {required this.startTime,
+      required this.durationSeconds,
+      required this.distanceKm,
+      required this.avgSpeed,
+      required this.maxSpeed,
+      required this.name});
 }
