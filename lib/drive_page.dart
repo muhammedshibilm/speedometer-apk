@@ -1,8 +1,12 @@
 import 'dart:async';
 import 'dart:math';
+
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:hive/hive.dart';
+
+import 'trip_model.dart';
 
 class DrivePage extends StatefulWidget {
   const DrivePage({super.key});
@@ -13,38 +17,47 @@ class DrivePage extends StatefulWidget {
 
 class _DrivePageState extends State<DrivePage> {
   StreamSubscription<Position>? _positionStream;
+  Timer? _tripTimer;
 
-  double _speed = 0.0;
-  double _lastSpeed = 0.0;
-  double _distance = 0.0;
+  double _speed = 0;
+  double _lastSpeed = 0;
+  double _distance = 0;
   double _accuracy = 999;
+
+  Duration _tripDuration = Duration.zero;
 
   final List<double> _recentSpeeds = [];
   static const int _stabilityWindow = 8;
+  static const double _maxSpeed = 160;
 
   Position? _lastPosition;
   bool _tracking = false;
 
-  @override
-  void dispose() {
-    _stopTrip();
-    super.dispose();
-  }
-
-  // -------------------- TRIP CONTROL --------------------
+  // ---------------- TRIP CONTROL ----------------
 
   Future<void> _startTrip() async {
     final permission = await Geolocator.requestPermission();
     if (permission == LocationPermission.denied ||
-        permission == LocationPermission.deniedForever) {
-      return;
-    }
+        permission == LocationPermission.deniedForever) return;
 
     setState(() {
       _tracking = true;
-      _distance = 0;
-      _recentSpeeds.clear();
+      _speed = 0;
       _lastSpeed = 0;
+      _distance = 0;
+      _accuracy = 999;
+      _tripDuration = Duration.zero;
+      _recentSpeeds.clear();
+      _lastPosition = null;
+    });
+
+    _tripTimer?.cancel();
+    _tripTimer = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (_tracking) {
+        setState(() {
+          _tripDuration += const Duration(seconds: 1);
+        });
+      }
     });
 
     _positionStream = Geolocator.getPositionStream(
@@ -55,70 +68,150 @@ class _DrivePageState extends State<DrivePage> {
     ).listen(_onPosition);
   }
 
-  void _stopTrip() {
+  void _stopTrackingOnly() {
     _positionStream?.cancel();
+    _tripTimer?.cancel();
     _positionStream = null;
-    setState(() => _tracking = false);
+    _tripTimer = null;
+
+    setState(() {
+      _tracking = false;
+    });
   }
 
-  // -------------------- GPS HANDLING --------------------
+  // ---------------- GPS ----------------
 
-  void _onPosition(Position position) {
-    if (position.accuracy > 30) return;
+  void _onPosition(Position p) {
+    if (p.accuracy > 40) return;
 
-    final currentSpeed = (position.speed * 3.6).clamp(0, 200).toDouble();
-    final delta = (currentSpeed - _lastSpeed).abs();
-
-    if (delta > 20) return; // spike filter
+    final speed = (p.speed * 3.6).clamp(0, _maxSpeed).toDouble();
+    if ((speed - _lastSpeed).abs() > 20) return;
 
     if (_lastPosition != null) {
       final meters = Geolocator.distanceBetween(
         _lastPosition!.latitude,
         _lastPosition!.longitude,
-        position.latitude,
-        position.longitude,
+        p.latitude,
+        p.longitude,
       );
-      if (meters < 50) {
-        _distance += meters;
-      }
+      if (meters < 50) _distance += meters;
     }
 
-    _lastPosition = position;
+    _lastPosition = p;
 
-    _recentSpeeds.add(currentSpeed);
+    _recentSpeeds.add(speed);
     if (_recentSpeeds.length > _stabilityWindow) {
       _recentSpeeds.removeAt(0);
     }
 
     setState(() {
-      _speed = currentSpeed;
-      _lastSpeed = currentSpeed;
-      _accuracy = position.accuracy;
+      _speed = speed;
+      _lastSpeed = speed;
+      _accuracy = p.accuracy;
     });
   }
 
-  // -------------------- UI LOGIC --------------------
+  // ---------------- SAVE TRIP ----------------
 
-  Color get _speedRingColor {
-    if (_speed <= 30) return Colors.green;
-    if (_speed <= 70) return Colors.orange;
-    return Colors.red;
+  void _saveTrip() async {
+    if (_tripDuration.inSeconds < 5 || _distance < 10) return;
+
+    final avgSpeed = _recentSpeeds.isEmpty
+        ? 0.0
+        : _recentSpeeds.reduce((a, b) => a + b) / _recentSpeeds.length;
+
+    final maxSpeed =
+        _recentSpeeds.isEmpty ? 0.0 : _recentSpeeds.reduce(max).toDouble();
+
+    final trip = TripModel(
+      startTime: DateTime.now().subtract(_tripDuration),
+      durationSeconds: _tripDuration.inSeconds,
+      distanceKm: _distance / 1000,
+      avgSpeed: avgSpeed,
+      maxSpeed: maxSpeed,
+    );
+
+    final box = Hive.box<TripModel>('trips');
+    await box.add(trip);
   }
+
+  Future<void> _confirmSaveTrip() async {
+    await showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.grey.shade900,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (_) {
+        return Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                'Save this trip?',
+                style: GoogleFonts.inter(
+                  color: Colors.white,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(height: 20),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.green,
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                  ),
+                  onPressed: () {
+                    _saveTrip();
+                    Navigator.pop(context);
+                  },
+                  child: const Text('SAVE TRIP'),
+                ),
+              ),
+              const SizedBox(height: 8),
+              SizedBox(
+                width: double.infinity,
+                child: TextButton(
+                  onPressed: () {
+                    Navigator.pop(context);
+                  },
+                  child: Text(
+                    'DISCARD',
+                    style: GoogleFonts.inter(color: Colors.redAccent),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  // ---------------- UI HELPERS ----------------
 
   Color get _stabilityColor {
     if (_recentSpeeds.length < 2) return Colors.green;
-
     final avg = _recentSpeeds.reduce((a, b) => a + b) / _recentSpeeds.length;
     final variance =
         _recentSpeeds.map((s) => pow(s - avg, 2)).reduce((a, b) => a + b) /
-        _recentSpeeds.length;
+            _recentSpeeds.length;
 
     if (variance < 4) return Colors.green;
     if (variance < 15) return Colors.orange;
     return Colors.red;
   }
 
-  // -------------------- BUILD --------------------
+  String _formatDuration(Duration d) {
+    final m = d.inMinutes.toString().padLeft(2, '0');
+    final s = (d.inSeconds % 60).toString().padLeft(2, '0');
+    return '$m:$s';
+  }
+
+  // ---------------- BUILD ----------------
 
   @override
   Widget build(BuildContext context) {
@@ -128,9 +221,9 @@ class _DrivePageState extends State<DrivePage> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            // TOP INFO
+            // TOP
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
@@ -138,20 +231,26 @@ class _DrivePageState extends State<DrivePage> {
                     'DIST',
                     '${(_distance / 1000).toStringAsFixed(2)} km',
                   ),
-                  _infoBlock('±', '${_accuracy.toStringAsFixed(0)} m'),
+                  Text(
+                    '±${_accuracy.toStringAsFixed(0)} m',
+                    style: GoogleFonts.inter(color: Colors.grey, fontSize: 12),
+                  ),
                 ],
               ),
             ),
 
-            // SPEED + RING
+            // SPEED
             Stack(
               alignment: Alignment.center,
               children: [
                 SizedBox(
-                  width: 220,
-                  height: 220,
+                  width: 200,
+                  height: 200,
                   child: CustomPaint(
-                    painter: _SpeedRingPainter(_speedRingColor),
+                    painter: _SegmentedArcPainter(
+                      speed: _speed,
+                      maxSpeed: _maxSpeed,
+                    ),
                   ),
                 ),
                 Column(
@@ -159,7 +258,7 @@ class _DrivePageState extends State<DrivePage> {
                     Text(
                       _speed.toStringAsFixed(0),
                       style: GoogleFonts.inter(
-                        fontSize: 96,
+                        fontSize: 88,
                         fontWeight: FontWeight.w700,
                         color: Colors.white,
                       ),
@@ -168,15 +267,13 @@ class _DrivePageState extends State<DrivePage> {
                       'km/h',
                       style: GoogleFonts.inter(
                         color: Colors.grey,
-                        fontSize: 18,
+                        fontSize: 16,
                       ),
                     ),
-
-                    // STABILITY BAR
-                    const SizedBox(height: 10),
+                    const SizedBox(height: 8),
                     Container(
-                      width: 80,
-                      height: 6,
+                      width: 72,
+                      height: 5,
                       decoration: BoxDecoration(
                         color: _stabilityColor,
                         borderRadius: BorderRadius.circular(3),
@@ -187,25 +284,42 @@ class _DrivePageState extends State<DrivePage> {
               ],
             ),
 
-            // BUTTON
+            // TIMER + BUTTON
             Padding(
-              padding: const EdgeInsets.only(bottom: 24),
-              child: ElevatedButton(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: _tracking ? Colors.red : Colors.green,
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 48,
-                    vertical: 14,
+              padding: const EdgeInsets.only(bottom: 20),
+              child: Column(
+                children: [
+                  Text(
+                    _formatDuration(_tripDuration),
+                    style: GoogleFonts.inter(
+                      color: Colors.grey,
+                      fontSize: 14,
+                      letterSpacing: 1.1,
+                    ),
                   ),
-                ),
-                onPressed: _tracking ? _stopTrip : _startTrip,
-                child: Text(
-                  _tracking ? 'END TRIP' : 'START TRIP',
-                  style: GoogleFonts.inter(
-                    fontWeight: FontWeight.w600,
-                    color: Colors.white,
+                  const SizedBox(height: 8),
+                  ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                        backgroundColor: _tracking ? Colors.red : Colors.green,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 44,
+                          vertical: 12,
+                        )),
+                    onPressed: _tracking
+                        ? () {
+                            _stopTrackingOnly();
+                            _confirmSaveTrip();
+                          }
+                        : _startTrip,
+                    child: Text(
+                      _tracking ? 'END TRIP' : 'START TRIP',
+                      style: GoogleFonts.inter(
+                        fontWeight: FontWeight.w600,
+                        color: Colors.white,
+                      ),
+                    ),
                   ),
-                ),
+                ],
               ),
             ),
           ],
@@ -218,12 +332,13 @@ class _DrivePageState extends State<DrivePage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label, style: GoogleFonts.inter(color: Colors.grey)),
+        Text(label, style: GoogleFonts.inter(color: Colors.grey, fontSize: 11)),
         Text(
           value,
           style: GoogleFonts.inter(
             color: Colors.white,
             fontWeight: FontWeight.w600,
+            fontSize: 14,
           ),
         ),
       ],
@@ -231,33 +346,49 @@ class _DrivePageState extends State<DrivePage> {
   }
 }
 
-// -------------------- RING PAINTER --------------------
+// ---------------- SEGMENTED ARC ----------------
 
-class _SpeedRingPainter extends CustomPainter {
-  final Color color;
+class _SegmentedArcPainter extends CustomPainter {
+  final double speed;
+  final double maxSpeed;
 
-  _SpeedRingPainter(this.color);
+  static const int segments = 32;
+  static const double startAngle = -5 * pi / 4;
+  static const double sweepAngle = 3 * pi / 2;
+
+  _SegmentedArcPainter({required this.speed, required this.maxSpeed});
 
   @override
   void paint(Canvas canvas, Size size) {
     final center = size.center(Offset.zero);
     final radius = size.width / 2;
+    final active = ((speed / maxSpeed) * segments).round();
 
-    final paint = Paint()
-      ..color = color
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 10
-      ..strokeCap = StrokeCap.round;
+    for (int i = 0; i < segments; i++) {
+      final t = i / segments;
+      final angle = startAngle + sweepAngle * t;
+      final color = i < active
+          ? Color.lerp(Colors.green, Colors.red, t)!
+          : Colors.grey.shade800;
 
-    canvas.drawArc(
-      Rect.fromCircle(center: center, radius: radius),
-      -pi / 2,
-      2 * pi,
-      false,
-      paint,
-    );
+      final paint = Paint()
+        ..color = color
+        ..strokeWidth = 5
+        ..strokeCap = StrokeCap.round;
+
+      final p1 = Offset(
+        center.dx + (radius - 12) * cos(angle),
+        center.dy + (radius - 12) * sin(angle),
+      );
+      final p2 = Offset(
+        center.dx + radius * cos(angle),
+        center.dy + radius * sin(angle),
+      );
+
+      canvas.drawLine(p1, p2, paint);
+    }
   }
 
   @override
-  bool shouldRepaint(CustomPainter oldDelegate) => true;
+  bool shouldRepaint(covariant _SegmentedArcPainter old) => old.speed != speed;
 }

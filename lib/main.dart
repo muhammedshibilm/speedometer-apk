@@ -1,20 +1,45 @@
 import 'package:flutter/material.dart';
-import 'package:speedy/drive_page.dart';
+import 'package:flutter/services.dart';
+import 'package:hive_flutter/hive_flutter.dart';
+import 'package:google_fonts/google_fonts.dart';
 
-void main() {
+import 'home_shell.dart';
+import 'trip_model.dart';
+
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+
+  // Init Hive
+  await Hive.initFlutter();
+  Hive.registerAdapter(TripModelAdapter());
+  await Hive.openBox<TripModel>('trips');
+
+  // Status bar style
+  SystemChrome.setSystemUIOverlayStyle(
+    const SystemUiOverlayStyle(
+      statusBarColor: Colors.transparent,
+      statusBarIconBrightness: Brightness.light,
+      statusBarBrightness: Brightness.dark,
+    ),
+  );
+
   runApp(const MyApp());
 }
 
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
 
-  // This widget is the root of your application.
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Flutter Demo',
-      theme: ThemeData(colorScheme: .fromSeed(seedColor: Colors.white)),
-      home: const DrivePage(),
+      debugShowCheckedModeBanner: false,
+      title: 'Speedy',
+      theme: ThemeData(
+        scaffoldBackgroundColor: Colors.black,
+        textTheme: GoogleFonts.interTextTheme(),
+        useMaterial3: false,
+      ),
+      home: const HomeShell(),
     );
   }
 }
