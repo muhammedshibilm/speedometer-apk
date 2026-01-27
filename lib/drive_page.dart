@@ -211,6 +211,52 @@ class _DrivePageState extends State<DrivePage> {
     return '$m:$s';
   }
 
+  Widget _gpsSignalWidget() {
+    int bars;
+    Color color;
+
+    if (_accuracy <= 8) {
+      bars = 4;
+      color = Colors.green;
+    } else if (_accuracy <= 20) {
+      bars = 3;
+      color = Colors.orange;
+    } else if (_accuracy <= 40) {
+      bars = 2;
+      color = Colors.redAccent;
+    } else {
+      bars = 1;
+      color = Colors.red;
+    }
+
+    return Row(
+      children: [
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: List.generate(4, (i) {
+            return Container(
+              width: 4,
+              height: 6 + i * 4,
+              margin: const EdgeInsets.only(right: 2),
+              decoration: BoxDecoration(
+                color: i < bars ? color : Colors.grey.shade700,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            );
+          }),
+        ),
+        const SizedBox(width: 6),
+        Text(
+          '±${_accuracy.toStringAsFixed(0)} m',
+          style: GoogleFonts.inter(
+            color: Colors.grey,
+            fontSize: 12,
+          ),
+        ),
+      ],
+    );
+  }
+
   // ---------------- BUILD ----------------
 
   @override
@@ -231,10 +277,7 @@ class _DrivePageState extends State<DrivePage> {
                     'DIST',
                     '${(_distance / 1000).toStringAsFixed(2)} km',
                   ),
-                  Text(
-                    '±${_accuracy.toStringAsFixed(0)} m',
-                    style: GoogleFonts.inter(color: Colors.grey, fontSize: 12),
-                  ),
+                  _gpsSignalWidget()
                 ],
               ),
             ),

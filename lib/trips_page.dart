@@ -2,11 +2,45 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:hive/hive.dart';
 import 'package:hive_flutter/hive_flutter.dart';
+import 'package:google_mobile_ads/google_mobile_ads.dart';
 
 import 'trip_model.dart';
 
-class TripsPage extends StatelessWidget {
+class TripsPage extends StatefulWidget {
   const TripsPage({super.key});
+
+  @override
+  State<TripsPage> createState() => _TripsPageState();
+}
+
+class _TripsPageState extends State<TripsPage> {
+  late BannerAd _bannerAd;
+  bool _isBannerLoaded = false;
+
+  @override
+  void initState() {
+    super.initState();
+
+    _bannerAd = BannerAd(
+      adUnitId: 'ca-app-pub-9959004005442539/2521212661',
+      size: AdSize.banner,
+      request: const AdRequest(),
+      listener: BannerAdListener(
+        onAdLoaded: (_) {
+          setState(() => _isBannerLoaded = true);
+        },
+        onAdFailedToLoad: (ad, error) {
+          ad.dispose();
+        },
+      ),
+    )..load();
+  }
+
+  @override
+  void dispose() {
+    _bannerAd.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -25,65 +59,72 @@ class TripsPage extends StatelessWidget {
           ),
         ),
       ),
-      body: ValueListenableBuilder(
-        valueListenable: box.listenable(),
-        builder: (_, Box<TripModel> box, __) {
-          if (box.isEmpty) {
-            return Center(
-              child: Text(
-                'No trips yet',
-                style: GoogleFonts.inter(color: Colors.grey),
-              ),
-            );
-          }
-
-          return ListView.builder(
-            padding: const EdgeInsets.only(bottom: 80),
-            itemCount: box.length,
-            itemBuilder: (_, index) {
-              // Latest trip first
-              final reverseIndex = box.length - 1 - index;
-              final trip = box.getAt(reverseIndex)!;
-
-              return Dismissible(
-                key: ValueKey(trip.key),
-                direction: DismissDirection.endToStart,
-                background: Container(
-                  alignment: Alignment.centerRight,
-                  padding: const EdgeInsets.only(right: 20),
-                  color: Colors.redAccent,
-                  child: const Icon(
-                    Icons.delete,
-                    color: Colors.white,
-                  ),
-                ),
-                confirmDismiss: (_) async {
-                  // Soft confirmation (no dialog)
-                  return true;
-                },
-                onDismissed: (_) async {
-                  final deletedTrip = trip;
-                  final deletedIndex = reverseIndex;
-
-                  await trip.delete();
-
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: const Text('Trip deleted'),
-                      action: SnackBarAction(
-                        label: 'UNDO',
-                        onPressed: () async {
-                          await box.putAt(deletedIndex, deletedTrip);
-                        },
-                      ),
+      body: Column(
+        children: [
+          // TRIP LIST
+          Expanded(
+            child: ValueListenableBuilder(
+              valueListenable: box.listenable(),
+              builder: (_, Box<TripModel> box, __) {
+                if (box.isEmpty) {
+                  return Center(
+                    child: Text(
+                      'No trips yet',
+                      style: GoogleFonts.inter(color: Colors.grey),
                     ),
                   );
-                },
-                child: _TripTile(trip: trip),
-              );
-            },
-          );
-        },
+                }
+
+                return ListView.builder(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  itemCount: box.length,
+                  itemBuilder: (_, index) {
+                    final reverseIndex = box.length - 1 - index;
+                    final trip = box.getAt(reverseIndex)!;
+
+                    return Dismissible(
+                      key: ValueKey(trip.key),
+                      direction: DismissDirection.endToStart,
+                      background: Container(
+                        alignment: Alignment.centerRight,
+                        padding: const EdgeInsets.only(right: 20),
+                        color: Colors.redAccent,
+                        child: const Icon(Icons.delete, color: Colors.white),
+                      ),
+                      onDismissed: (_) async {
+                        final deletedTrip = trip;
+                        final deletedIndex = reverseIndex;
+
+                        await trip.delete();
+
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: const Text('Trip deleted'),
+                            action: SnackBarAction(
+                              label: 'UNDO',
+                              onPressed: () async {
+                                await box.putAt(deletedIndex, deletedTrip);
+                              },
+                            ),
+                          ),
+                        );
+                      },
+                      child: _TripTile(trip: trip),
+                    );
+                  },
+                );
+              },
+            ),
+          ),
+
+          // BANNER AD (BOTTOM)
+          if (_isBannerLoaded)
+            SizedBox(
+              width: _bannerAd.size.width.toDouble(),
+              height: _bannerAd.size.height.toDouble(),
+              child: AdWidget(ad: _bannerAd),
+            ),
+        ],
       ),
     );
   }
@@ -110,7 +151,6 @@ class _TripTile extends StatelessWidget {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          // LEFT
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -132,8 +172,6 @@ class _TripTile extends StatelessWidget {
               ),
             ],
           ),
-
-          // RIGHT
           Column(
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [

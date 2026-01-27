@@ -2,12 +2,16 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:google_mobile_ads/google_mobile_ads.dart';
 
 import 'home_shell.dart';
 import 'trip_model.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // ads
+  await MobileAds.instance.initialize();
 
   // Init Hive
   await Hive.initFlutter();
