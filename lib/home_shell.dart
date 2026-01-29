@@ -48,7 +48,6 @@ class _HomeShellState extends State<HomeShell> {
   }
 
   Future<bool> _onWillPop() async {
-    // Show interstitial only once per session
     if (_exitAd != null && !_exitAdShown) {
       _exitAdShown = true;
       _exitAd!.show();
@@ -74,10 +73,9 @@ class _HomeShellState extends State<HomeShell> {
           children: _pages,
         ),
         bottomNavigationBar: BottomNavigationBar(
-          backgroundColor: Colors.black,
+       
           currentIndex: _currentIndex,
-          selectedItemColor: Colors.white,
-          unselectedItemColor: Colors.grey,
+     
           onTap: (index) {
             setState(() {
               _currentIndex = index;

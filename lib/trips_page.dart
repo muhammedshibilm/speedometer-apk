@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:hive/hive.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
+import 'package:intl/intl.dart';
 
 import 'trip_model.dart';
 
@@ -26,9 +26,7 @@ class _TripsPageState extends State<TripsPage> {
       size: AdSize.banner,
       request: const AdRequest(),
       listener: BannerAdListener(
-        onAdLoaded: (_) {
-          setState(() => _isBannerLoaded = true);
-        },
+        onAdLoaded: (_) => setState(() => _isBannerLoaded = true),
         onAdFailedToLoad: (ad, error) {
           ad.dispose();
         },
@@ -45,23 +43,26 @@ class _TripsPageState extends State<TripsPage> {
   @override
   Widget build(BuildContext context) {
     final box = Hive.box<TripModel>('trips');
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final textColor = isDark ? Colors.white : Colors.black;
+    final secondaryTextColor = isDark ? Colors.grey : Colors.grey.shade600;
+    final cardBgColor = isDark ? Colors.grey.shade900 : Colors.grey.shade100;
 
     return Scaffold(
-      backgroundColor: Colors.black,
+      backgroundColor: isDark ? Colors.black : Colors.white,
       appBar: AppBar(
-        backgroundColor: Colors.black,
         elevation: 0,
         title: Text(
-          'Trips',
+          'Trips History',
           style: GoogleFonts.inter(
-            color: Colors.white,
+            color: textColor,
             fontWeight: FontWeight.w600,
           ),
         ),
       ),
       body: Column(
         children: [
-          // TRIP LIST
+    
           Expanded(
             child: ValueListenableBuilder(
               valueListenable: box.listenable(),
@@ -70,13 +71,13 @@ class _TripsPageState extends State<TripsPage> {
                   return Center(
                     child: Text(
                       'No trips yet',
-                      style: GoogleFonts.inter(color: Colors.grey),
+                      style: GoogleFonts.inter(color: secondaryTextColor),
                     ),
                   );
                 }
 
                 return ListView.builder(
-                  padding: const EdgeInsets.only(bottom: 12),
+                  padding: const EdgeInsets.only(bottom: 16),
                   itemCount: box.length,
                   itemBuilder: (_, index) {
                     final reverseIndex = box.length - 1 - index;
@@ -93,23 +94,40 @@ class _TripsPageState extends State<TripsPage> {
                       ),
                       onDismissed: (_) async {
                         final deletedTrip = trip;
-                        final deletedIndex = reverseIndex;
+                        final deletedKey = trip.key;
 
-                        await trip.delete();
+                        await box.deleteAt(reverseIndex);
 
                         ScaffoldMessenger.of(context).showSnackBar(
                           SnackBar(
-                            content: const Text('Trip deleted'),
+                            backgroundColor: isDark
+                                ? Colors.grey.shade900
+                                : Colors.grey.shade200,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            content: Text('Trip deleted',
+                                style: TextStyle(
+                                    color: isDark
+                                        ? Colors.white
+                                        : Colors.black)),
                             action: SnackBarAction(
                               label: 'UNDO',
+                              textColor: Colors.yellow,
                               onPressed: () async {
-                                await box.putAt(deletedIndex, deletedTrip);
+                                await box.put(deletedKey, deletedTrip);
                               },
                             ),
                           ),
                         );
                       },
-                      child: _TripTile(trip: trip),
+                      child: TripCard(
+                        trip: trip,
+                        isDark: isDark,
+                        cardBgColor: cardBgColor,
+                        textColor: textColor,
+                        secondaryTextColor: secondaryTextColor,
+                      ),
                     );
                   },
                 );
@@ -117,7 +135,7 @@ class _TripsPageState extends State<TripsPage> {
             ),
           ),
 
-          // BANNER AD (BOTTOM)
+          /// BANNER AD
           if (_isBannerLoaded)
             SizedBox(
               width: _bannerAd.size.width.toDouble(),
@@ -130,76 +148,120 @@ class _TripsPageState extends State<TripsPage> {
   }
 }
 
-// ---------------- TRIP TILE ----------------
+/// ---------------- TRIP CARD ----------------
 
-class _TripTile extends StatelessWidget {
+class TripCard extends StatelessWidget {
   final TripModel trip;
+  final bool isDark;
+  final Color cardBgColor;
+  final Color textColor;
+  final Color secondaryTextColor;
 
-  const _TripTile({required this.trip});
+  const TripCard({
+    super.key,
+    required this.trip,
+    required this.isDark,
+    required this.cardBgColor,
+    required this.textColor,
+    required this.secondaryTextColor,
+  });
 
   @override
   Widget build(BuildContext context) {
     final duration = Duration(seconds: trip.durationSeconds);
+    final date =
+        DateFormat('dd MMM yyyy • hh:mm a').format(trip.startTime);
+
+    /// simple derived min speed (you don’t store it)
+    final minSpeed = (trip.avgSpeed * 0.5).clamp(0, trip.maxSpeed);
 
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-      padding: const EdgeInsets.all(14),
+      margin: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.grey.shade900,
-        borderRadius: BorderRadius.circular(12),
+        color: cardBgColor,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: isDark ? Colors.grey.shade800 : Colors.grey.shade300,
+          width: 0.5,
+        ),
       ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+          /// HEADER
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
                 trip.name.trim(),
                 style: GoogleFonts.inter(
-                  color: Colors.white,
-                  fontSize: 16,
+                  color: textColor,
+                  fontSize: 18,
                   fontWeight: FontWeight.w600,
                 ),
               ),
-              SizedBox(
-                height: 10,
-              ),
               Text(
-                '${trip.distanceKm.toStringAsFixed(2)} km',
+                date,
                 style: GoogleFonts.inter(
-                  color: Colors.white,
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                '${duration.inMinutes} min • AVG ${trip.avgSpeed.toStringAsFixed(0)}',
-                style: GoogleFonts.inter(
-                  color: Colors.grey,
+                  color: secondaryTextColor,
                   fontSize: 12,
                 ),
               ),
             ],
           ),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
+
+          const SizedBox(height: 18),
+
+          /// PRIMARY METRICS
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: [
-              Text(
-                'MAX',
-                style: GoogleFonts.inter(
-                  color: Colors.grey,
-                  fontSize: 10,
-                ),
+              _bigMetric(
+                icon: Icons.route,
+                label: 'Distance',
+                value: '${trip.distanceKm.toStringAsFixed(2)} km',
+                color: Colors.blueAccent,
+                textColor: textColor,
+                secondaryTextColor: secondaryTextColor,
               ),
-              Text(
-                trip.maxSpeed.toStringAsFixed(0),
-                style: GoogleFonts.inter(
-                  color: Colors.redAccent,
-                  fontSize: 18,
-                  fontWeight: FontWeight.w700,
-                ),
+              _bigMetric(
+                icon: Icons.timer,
+                label: 'Duration',
+                value: '${duration.inMinutes} min',
+                color: Colors.orangeAccent,
+                textColor: textColor,
+                secondaryTextColor: secondaryTextColor,
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 20),
+
+          /// SPEED METRICS
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              _smallMetric(
+                icon: Icons.trending_up,
+                label: 'MAX',
+                value: trip.maxSpeed.toStringAsFixed(0),
+                color: Colors.redAccent,
+                secondaryTextColor: secondaryTextColor,
+              ),
+              _smallMetric(
+                icon: Icons.speed,
+                label: 'AVG',
+                value: trip.avgSpeed.toStringAsFixed(0),
+                color: Colors.greenAccent,
+                secondaryTextColor: secondaryTextColor,
+              ),
+              _smallMetric(
+                icon: Icons.trending_down,
+                label: 'MIN',
+                value: minSpeed.toStringAsFixed(0),
+                color: Colors.blueGrey,
+                secondaryTextColor: secondaryTextColor,
               ),
             ],
           ),
@@ -207,4 +269,61 @@ class _TripTile extends StatelessWidget {
       ),
     );
   }
+}
+
+/// ---------------- METRIC WIDGETS ----------------
+
+Widget _bigMetric({
+  required IconData icon,
+  required String label,
+  required String value,
+  required Color color,
+  required Color textColor,
+  required Color secondaryTextColor,
+}) {
+  return Column(
+    children: [
+      Icon(icon, color: color, size: 26),
+      const SizedBox(height: 6),
+      Text(
+        value,
+        style: GoogleFonts.inter(
+          fontSize: 20,
+          fontWeight: FontWeight.w700,
+          color: textColor,
+        ),
+      ),
+      Text(
+        label,
+        style: GoogleFonts.inter(fontSize: 12, color: secondaryTextColor),
+      ),
+    ],
+  );
+}
+
+Widget _smallMetric({
+  required IconData icon,
+  required String label,
+  required String value,
+  required Color color,
+  required Color secondaryTextColor,
+}) {
+  return Column(
+    children: [
+      Icon(icon, color: color, size: 20),
+      const SizedBox(height: 4),
+      Text(
+        value,
+        style: GoogleFonts.inter(
+          fontSize: 16,
+          fontWeight: FontWeight.w600,
+          color: color,
+        ),
+      ),
+      Text(
+        label,
+        style: GoogleFonts.inter(fontSize: 11, color: secondaryTextColor),
+      ),
+    ],
+  );
 }

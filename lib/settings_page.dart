@@ -1,23 +1,25 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:hive/hive.dart';
+import 'package:provider/provider.dart';
 
 import 'trip_model.dart';
+import 'theme_provider.dart';
 
 class SettingsPage extends StatelessWidget {
   const SettingsPage({super.key});
 
   @override
   Widget build(BuildContext context) {
+    final themeProvider = Provider.of<ThemeProvider>(context);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return Scaffold(
-      backgroundColor: Colors.black,
       appBar: AppBar(
-        backgroundColor: Colors.black,
         elevation: 0,
         title: Text(
           'Settings',
           style: GoogleFonts.inter(
-            color: Colors.white,
             fontWeight: FontWeight.w600,
           ),
         ),
@@ -28,7 +30,9 @@ class SettingsPage extends StatelessWidget {
           ListTile(
             title: Text(
               'Clear trip history',
-              style: GoogleFonts.inter(color: Colors.white),
+              style: GoogleFonts.inter(
+                color: isDark ? Colors.white : Colors.black,
+              ),
             ),
             subtitle: Text(
               'Delete all stored trips',
@@ -40,16 +44,88 @@ class SettingsPage extends StatelessWidget {
               await box.clear();
 
               ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Trip history cleared')),
+                SnackBar(
+                  content: Text('Trip history cleared',
+                      style: TextStyle(
+                          color: isDark ? Colors.white : Colors.black)),
+                  backgroundColor: isDark
+                      ? Colors.grey.shade900
+                      : Colors.grey.shade200,
+                  shape: const RoundedRectangleBorder(
+                    borderRadius: BorderRadius.all(Radius.circular(8)),
+                  ),
+                ),
               );
             },
+          ),
+          const Divider(color: Colors.grey),
+          _sectionTitle('THEME'),
+          ListTile(
+            title: Text(
+              'Theme Mode',
+              style: GoogleFonts.inter(
+                color: isDark ? Colors.white : Colors.black,
+              ),
+            ),
+            subtitle: Text(
+              'Choose your preferred theme',
+              style: GoogleFonts.inter(color: Colors.grey),
+            ),
+            trailing: DropdownButton<String>(
+              value: themeProvider.useSystemTheme
+                  ? 'system'
+                  : (themeProvider.isDarkMode ? 'dark' : 'light'),
+              underline: const SizedBox(),
+              items: [
+                DropdownMenuItem(
+                  value: 'system',
+                  child: Text('System',
+                      style: GoogleFonts.inter(
+                        color: isDark ? Colors.white : Colors.black,
+                      )),
+                ),
+                DropdownMenuItem(
+                  value: 'light',
+                  child: Text('Light',
+                      style: GoogleFonts.inter(
+                        color: isDark ? Colors.white : Colors.black,
+                      )),
+                ),
+                DropdownMenuItem(
+                  value: 'dark',
+                  child: Text('Dark',
+                      style: GoogleFonts.inter(
+                        color: isDark ? Colors.white : Colors.black,
+                      )),
+                ),
+              ],
+              onChanged: (value) {
+                if (value == 'system') {
+                  if (!themeProvider.useSystemTheme) {
+                    themeProvider.toggleUseSystemTheme();
+                  }
+                } else if (value == 'light') {
+                  if (themeProvider.useSystemTheme) {
+                    themeProvider.toggleUseSystemTheme();
+                  }
+                  themeProvider.setTheme('light');
+                } else if (value == 'dark') {
+                  if (themeProvider.useSystemTheme) {
+                    themeProvider.toggleUseSystemTheme();
+                  }
+                  themeProvider.setTheme('dark');
+                }
+              },
+            ),
           ),
           const Divider(color: Colors.grey),
           _sectionTitle('ABOUT'),
           ListTile(
             title: Text(
               'Speedometer',
-              style: GoogleFonts.inter(color: Colors.white),
+              style: GoogleFonts.inter(
+                color: isDark ? Colors.white : Colors.black,
+              ),
             ),
             subtitle: Text(
               'Offline GPS speed tracking',
@@ -59,7 +135,9 @@ class SettingsPage extends StatelessWidget {
           ListTile(
             title: Text(
               'Version',
-              style: GoogleFonts.inter(color: Colors.white),
+              style: GoogleFonts.inter(
+                color: isDark ? Colors.white : Colors.black,
+              ),
             ),
             subtitle: Text(
               '1.0.0',
