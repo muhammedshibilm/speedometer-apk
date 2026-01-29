@@ -36,8 +36,8 @@ class _DrivePageState extends State<DrivePage> {
   static const double _maxSpeedJump = 35;
 
   // GPS filtering thresholds
-  static const double _minDistanceMeters = 5;  // ignore GPS jitter
-  static const double _minSpeedKmh = 1.5;      // stationary cutoff (walking speed)
+  static const double _minDistanceMeters = 15;  // ignore GPS jitter (stricter)
+  static const double _minSpeedKmh = 3.0;       // stationary cutoff (stricter)
 
 
   Position? _lastPosition;
@@ -95,8 +95,8 @@ void _onPosition(Position p) {
     _accuracy = p.accuracy;
   });
 
-  // Stricter accuracy threshold for better precision
-  if (p.accuracy > 25) return;
+  // Stricter accuracy threshold for better precision (ignore weak signals)
+  if (p.accuracy > 15) return;
 
   if (_lastPosition != null) {
     final distanceMeters = Geolocator.distanceBetween(
