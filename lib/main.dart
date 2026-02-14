@@ -7,6 +7,7 @@ import 'package:provider/provider.dart';
 
 import 'home_shell.dart';
 import 'trip_model.dart';
+import 'splash_screen.dart';
 import 'theme_provider.dart';
 
 void main() async {
@@ -110,7 +111,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
         useMaterial3: false,
       ),
       themeMode: themeProvider.themeMode,
-      home: const HomeShell(),
+      home: const SplashScreen(),
     );
   }
 }

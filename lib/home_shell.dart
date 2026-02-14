@@ -1,4 +1,6 @@
+import 'package:flutter/services.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 
 import 'drive_page.dart';
@@ -39,6 +41,18 @@ class _HomeShellState extends State<HomeShell> {
       adLoadCallback: InterstitialAdLoadCallback(
         onAdLoaded: (ad) {
           _exitAd = ad;
+          _exitAd!.fullScreenContentCallback = FullScreenContentCallback(
+            onAdDismissedFullScreenContent: (ad) {
+              ad.dispose();
+              // Exit the app when ad is dismissed
+              SystemNavigator.pop();
+            },
+            onAdFailedToShowFullScreenContent: (ad, error) {
+              ad.dispose();
+              // Exit the app if ad fails to show
+              SystemNavigator.pop();
+            },
+          );
         },
         onAdFailedToLoad: (error) {
           _exitAd = null;
@@ -52,9 +66,10 @@ class _HomeShellState extends State<HomeShell> {
       _exitAdShown = true;
       _exitAd!.show();
       _exitAd = null;
-      return false; // prevent immediate exit
+      return false; // prevent immediate exit, wait for callback
     }
-    return true; // exit app
+    // If no ad, or ad already shown, just exit
+    return true; 
   }
 
   @override
@@ -65,6 +80,40 @@ class _HomeShellState extends State<HomeShell> {
 
   @override
   Widget build(BuildContext context) {
+    final isIOS = Theme.of(context).platform == TargetPlatform.iOS;
+
+    if (isIOS) {
+      return CupertinoTabScaffold(
+        tabBar: CupertinoTabBar(
+          currentIndex: _currentIndex,
+          onTap: (index) {
+            setState(() {
+              _currentIndex = index;
+            });
+          },
+          items: const [
+            BottomNavigationBarItem(
+              icon: Icon(CupertinoIcons.speedometer),
+              label: 'Drive',
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(CupertinoIcons.clock_fill),
+              label: 'Trips',
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(CupertinoIcons.settings),
+              label: 'Settings',
+            ),
+          ],
+        ),
+        tabBuilder: (context, index) {
+          return CupertinoPageScaffold(
+            child: _pages[index],
+          );
+        },
+      );
+    }
+
     return WillPopScope(
       onWillPop: _onWillPop,
       child: Scaffold(
@@ -73,9 +122,7 @@ class _HomeShellState extends State<HomeShell> {
           children: _pages,
         ),
         bottomNavigationBar: BottomNavigationBar(
-       
           currentIndex: _currentIndex,
-     
           onTap: (index) {
             setState(() {
               _currentIndex = index;
