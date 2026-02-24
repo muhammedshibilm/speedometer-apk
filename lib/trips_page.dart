@@ -1,3 +1,4 @@
+// ignore: library_prefixes
 import 'dart:ui' as imageUrl;
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -183,18 +184,15 @@ class _TripCardState extends State<TripCard> {
     final date =
         DateFormat('dd MMM yyyy • hh:mm a').format(widget.trip.startTime);
 
-    /// simple derived min speed
-    final minSpeed = (widget.trip.avgSpeed * 0.5).clamp(0, widget.trip.maxSpeed);
 
     // Premium Colors & Gradients
     final gradientColors = widget.isDark
-        ? [Colors.white.withOpacity(0.1), Colors.white.withOpacity(0.05)]
-        : [Colors.black.withOpacity(0.05), Colors.black.withOpacity(0.02)];
+        ? [Colors.white.withValues(alpha: 0.1), Colors.white.withValues(alpha: 0.05)]
+        : [Colors.black.withValues(alpha: 0.05), Colors.black.withValues(alpha: 0.02)];
     
     final borderColor = widget.isDark 
-        ? Colors.white.withOpacity(0.15) 
-        : Colors.black.withOpacity(0.1);
-
+        ? Colors.white.withValues(alpha: 0.15) 
+        : Colors.black.withValues(alpha: 0.1);
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
       decoration: BoxDecoration(
@@ -207,7 +205,7 @@ class _TripCardState extends State<TripCard> {
         border: Border.all(color: borderColor, width: 1.5),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.1),
+            color: Colors.black.withValues(alpha: 0.1),
             blurRadius: 15,
             offset: const Offset(0, 8),
           ),
@@ -228,7 +226,7 @@ class _TripCardState extends State<TripCard> {
                     Container(
                       padding: const EdgeInsets.all(10),
                       decoration: BoxDecoration(
-                        color: Colors.blueAccent.withOpacity(0.2),
+                        color: Colors.blueAccent.withValues(alpha: 0.2),
                         shape: BoxShape.circle,
                       ),
                       child: const Icon(Icons.directions_car, color: Colors.blueAccent, size: 20),
@@ -273,7 +271,7 @@ class _TripCardState extends State<TripCard> {
                   children: [
                     _premiumMetric(
                       label: 'DISTANCE',
-                      value: '${widget.trip.distanceKm.toStringAsFixed(2)}',
+                      value: widget.trip.distanceKm.toStringAsFixed(2),
                       unit: 'km',
                       icon: Icons.map,
                       color: Colors.cyanAccent,
@@ -315,14 +313,14 @@ class _TripCardState extends State<TripCard> {
         Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, size: 14, color: widget.secondaryTextColor.withOpacity(0.7)),
+            Icon(icon, size: 14, color: widget.secondaryTextColor.withValues(alpha: 0.7)),
             const SizedBox(width: 4),
             Text(
               label,
               style: GoogleFonts.inter(
                 fontSize: 10,
                 fontWeight: FontWeight.w600,
-                color: widget.secondaryTextColor.withOpacity(0.7),
+                color: widget.secondaryTextColor.withValues(alpha: 0.7),
                 letterSpacing: 1.0,
               ),
             ),
@@ -623,59 +621,3 @@ class _TripCardState extends State<TripCard> {
   }
 }
 
-/// ---------------- METRIC WIDGETS ----------------
-
-Widget _bigMetric({
-  required IconData icon,
-  required String label,
-  required String value,
-  required Color color,
-  required Color textColor,
-  required Color secondaryTextColor,
-}) {
-  return Column(
-    children: [
-      Icon(icon, color: color, size: 26),
-      const SizedBox(height: 6),
-      Text(
-        value,
-        style: GoogleFonts.inter(
-          fontSize: 20,
-          fontWeight: FontWeight.w700,
-          color: textColor,
-        ),
-      ),
-      Text(
-        label,
-        style: GoogleFonts.inter(fontSize: 12, color: secondaryTextColor),
-      ),
-    ],
-  );
-}
-
-Widget _smallMetric({
-  required IconData icon,
-  required String label,
-  required String value,
-  required Color color,
-  required Color secondaryTextColor,
-}) {
-  return Column(
-    children: [
-      Icon(icon, color: color, size: 20),
-      const SizedBox(height: 4),
-      Text(
-        value,
-        style: GoogleFonts.inter(
-          fontSize: 16,
-          fontWeight: FontWeight.w600,
-          color: color,
-        ),
-      ),
-      Text(
-        label,
-        style: GoogleFonts.inter(fontSize: 11, color: secondaryTextColor),
-      ),
-    ],
-  );
-}

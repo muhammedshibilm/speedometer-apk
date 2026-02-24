@@ -5,8 +5,11 @@
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>
     <uses-permission android:name="android.permission.INTERNET"/>
 
+    <!-- Required for Google Mobile Ads -->
+    <uses-permission android:name="com.google.android.gms.permission.AD_ID"/>
+
     <application
-        android:label="speedy"
+        android:label="Speedy"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
 
