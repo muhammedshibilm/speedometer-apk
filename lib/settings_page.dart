@@ -155,23 +155,7 @@ class _SettingsPageState extends State<SettingsPage> {
                   ),
                
                   const SizedBox(height: 24),
-                  _sectionHeader('HELP & SUPPORT', isDark),
-                  _glassSettingsTile(
-                    context,
-                    icon: Icons.help_outline,
-                    title: 'Watch Tutorial',
-                    subtitle: 'Learn how to use Speedy features',
-                    trailing: Icon(Icons.chevron_right,
-                        color: isDark ? Colors.white54 : Colors.black54),
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(builder: (context) => const TutorialPage()),
-                      );
-                    },
-                    isDark: isDark,
-                  ),
-                  const SizedBox(height: 24),
+                  
                   _sectionHeader('ABOUT', isDark),
                   _glassSettingsTile(
                     context,
