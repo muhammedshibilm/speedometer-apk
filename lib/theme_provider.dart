@@ -4,13 +4,30 @@ import 'package:hive/hive.dart';
 class ThemeProvider extends ChangeNotifier {
   static const String _themeKey = 'themeMode'; // 'system', 'light', 'dark'
   static const String _systemThemeKey = 'useSystemTheme';
+  static const String _speedLimitKey = 'speedLimit';
+  static const String _soundAlertKey = 'soundAlert';
+  static const String _vibrationAlertKey = 'vibrationAlert';
   late Box _settingsBox;
 
   bool _useSystemTheme = true; // Default: follow system
   String _themeMode = 'system'; // 'system', 'light', 'dark'
   bool _systemIsDark = true;
+  
+  double _speedLimit = 80.0;
+  bool _enableSoundAlert = true;
+  bool _enableVibrationAlert = true;
 
   bool get useSystemTheme => _useSystemTheme;
+  double get speedLimit => _speedLimit;
+  bool get enableSoundAlert => _enableSoundAlert;
+  bool get enableVibrationAlert => _enableVibrationAlert;
+  
+  String get alertMode {
+    if (_enableSoundAlert && _enableVibrationAlert) return 'Both';
+    if (_enableSoundAlert) return 'Sound Only';
+    if (_enableVibrationAlert) return 'Vibration Only';
+    return 'None';
+  }
   bool get isDarkMode {
     if (_useSystemTheme) {
       return _systemIsDark;
@@ -26,6 +43,9 @@ class ThemeProvider extends ChangeNotifier {
     _settingsBox = await Hive.openBox('settings');
     _useSystemTheme = _settingsBox.get(_systemThemeKey, defaultValue: true);
     _themeMode = _settingsBox.get(_themeKey, defaultValue: 'system');
+    _speedLimit = _settingsBox.get(_speedLimitKey, defaultValue: 80.0);
+    _enableSoundAlert = _settingsBox.get(_soundAlertKey, defaultValue: true);
+    _enableVibrationAlert = _settingsBox.get(_vibrationAlertKey, defaultValue: true);
     notifyListeners();
   }
 
@@ -51,6 +71,49 @@ class ThemeProvider extends ChangeNotifier {
       _settingsBox.put(_themeKey, _themeMode);
       notifyListeners();
     }
+  }
+
+  void setSpeedLimit(double limit) {
+    _speedLimit = limit;
+    _settingsBox.put(_speedLimitKey, _speedLimit);
+    notifyListeners();
+  }
+
+  void setSoundAlert(bool enabled) {
+    _enableSoundAlert = enabled;
+    _settingsBox.put(_soundAlertKey, _enableSoundAlert);
+    notifyListeners();
+  }
+
+  void setVibrationAlert(bool enabled) {
+    _enableVibrationAlert = enabled;
+    _settingsBox.put(_vibrationAlertKey, _enableVibrationAlert);
+    notifyListeners();
+  }
+
+  void setAlertMode(String mode) {
+    switch (mode) {
+      case 'Both':
+        _enableSoundAlert = true;
+        _enableVibrationAlert = true;
+        break;
+      case 'Sound Only':
+        _enableSoundAlert = true;
+        _enableVibrationAlert = false;
+        break;
+      case 'Vibration Only':
+        _enableSoundAlert = false;
+        _enableVibrationAlert = true;
+        break;
+      case 'None':
+      default:
+        _enableSoundAlert = false;
+        _enableVibrationAlert = false;
+        break;
+    }
+    _settingsBox.put(_soundAlertKey, _enableSoundAlert);
+    _settingsBox.put(_vibrationAlertKey, _enableVibrationAlert);
+    notifyListeners();
   }
 
   // Futuristic Palette

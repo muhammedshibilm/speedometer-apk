@@ -25,12 +25,21 @@ class TripModel extends HiveObject {
   @HiveField(6)
   List<double> speedReadings;
 
-  TripModel(
-      {required this.startTime,
-      required this.durationSeconds,
-      required this.distanceKm,
-      required this.avgSpeed,
-      required this.maxSpeed,
-      required this.name,
-      this.speedReadings = const []});
+  @HiveField(7)
+  List<double> latitudes;
+
+  @HiveField(8)
+  List<double> longitudes;
+
+  TripModel({
+    required this.startTime,
+    required this.durationSeconds,
+    required this.distanceKm,
+    required this.avgSpeed,
+    required this.maxSpeed,
+    required this.name,
+    this.speedReadings = const [],
+    this.latitudes = const [],
+    this.longitudes = const [],
+  });
 }

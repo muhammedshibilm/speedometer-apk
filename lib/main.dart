@@ -9,6 +9,8 @@ import 'package:speedy/home_shell.dart';
 
 import 'trip_model.dart';
 import 'theme_provider.dart';
+import 'tutorial_page.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -47,12 +49,23 @@ class MyApp extends StatefulWidget {
 
 class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
   late ThemeProvider _themeProvider;
+  bool _isLoading = true;
+  bool _isFirstTime = true;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _themeProvider = Provider.of<ThemeProvider>(context, listen: false);
+    _checkFirstTime();
+  }
+
+  Future<void> _checkFirstTime() async {
+    final prefs = await SharedPreferences.getInstance();
+    setState(() {
+      _isFirstTime = !(prefs.getBool('tutorial_completed') ?? false);
+      _isLoading = false;
+    });
   }
 
   @override
@@ -111,7 +124,9 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
         useMaterial3: false,
       ),
       themeMode: themeProvider.themeMode,
-      home: const HomeShell(),
+      home: _isLoading 
+          ? const Scaffold(body: Center(child: CircularProgressIndicator()))
+          : (_isFirstTime ? const TutorialPage(isOnboarding: true) : const HomeShell()),
     );
   }
 }

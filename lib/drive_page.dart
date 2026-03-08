@@ -6,8 +6,14 @@ import 'package:flutter/cupertino.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:hive/hive.dart';
+import 'package:provider/provider.dart';
+import 'package:vibration/vibration.dart';
+import 'package:flutter_ringtone_player/flutter_ringtone_player.dart';
 
+import 'package:tutorial_coach_mark/tutorial_coach_mark.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'trip_model.dart';
+import 'theme_provider.dart';
 
 class DrivePage extends StatefulWidget {
   const DrivePage({super.key});
@@ -17,8 +23,19 @@ class DrivePage extends StatefulWidget {
 }
 
 class _DrivePageState extends State<DrivePage> {
+  final GlobalKey _signalKey = GlobalKey();
+  final GlobalKey _gaugeKey = GlobalKey();
+  final GlobalKey _hudKey = GlobalKey();
+  final GlobalKey _startBtnKey = GlobalKey();
+  final GlobalKey _limitKey = GlobalKey();
+  final GlobalKey _themeKey = GlobalKey();
+  
+  late TutorialCoachMark tutorialCoachMark;
+  List<TargetFocus> targets = [];
+
   StreamSubscription<Position>? _positionStream;
   Timer? _tripTimer;
+  Timer? _alertTimer;
 
   double _speed = 0;
   double _distance = 0;
@@ -28,12 +45,12 @@ class _DrivePageState extends State<DrivePage> {
 
   final List<double> _recentSpeeds = [];
   final List<double> _allSpeeds = [];
+  final List<double> _allLatitudes = [];
+  final List<double> _allLongitudes = [];
 
   static const int _stabilityWindow = 8;
   static const double _maxSpeed = 160;
 
-  // Speed tuning (Google-Maps-like)
-  static const double _emaAlpha = 0.35;
 
   // GPS filtering thresholds
   static const double _minDistanceMeters = 2.0; // Higher sensitivity
@@ -50,11 +67,305 @@ class _DrivePageState extends State<DrivePage> {
   
   // Kalman Filter for Speed
   late SimpleKalmanFilter _speedFilter;
+  
+  bool _isOverLimit = false;
 
   @override
   void initState() {
     super.initState();
     _speedFilter = SimpleKalmanFilter(decisionNoise: 0.1, measurementNoise: 3.0);
+    
+    Future.delayed(const Duration(milliseconds: 500), () {
+      _checkAndShowTutorial();
+    });
+  }
+
+  Future<void> _checkAndShowTutorial() async {
+    final prefs = await SharedPreferences.getInstance();
+    final shown = prefs.getBool('coach_mark_shown') ?? false;
+    if (!shown) {
+      _showTutorial();
+      await prefs.setBool('coach_mark_shown', true);
+    }
+  }
+
+  void _showTutorial() {
+    _initTargets();
+    tutorialCoachMark = TutorialCoachMark(
+      targets: targets,
+      colorShadow: Colors.black,
+      opacityShadow: 0.8,
+      paddingFocus: 10,
+      textSkip: "SKIP",
+      onFinish: () => debugPrint("Tutorial Finished"),
+      onClickTarget: (target) => debugPrint("Clicked target"),
+      onSkip: () {
+        debugPrint("Tutorial Skipped");
+        return true;
+      },
+    )..show(context: context);
+  }
+
+  void _initTargets() {
+    targets.clear();
+    
+    // GPS Signal
+    targets.add(
+      TargetFocus(
+        identify: "signal",
+        keyTarget: _signalKey,
+        contents: [
+          TargetContent(
+            align: ContentAlign.bottom,
+            builder: (context, controller) {
+              return Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                   Text(
+                    "GPS Connectivity",
+                    style: GoogleFonts.orbitron(
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                      fontSize: 20,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                   Text(
+                    "Watch these bars to ensure a strong GPS lock. Green means you're ready to go!",
+                    style: GoogleFonts.inter(color: Colors.white),
+                  ),
+                  const SizedBox(height: 20),
+                  ElevatedButton(
+                    onPressed: () => controller.next(),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.white24,
+                      foregroundColor: Colors.white,
+                    ),
+                    child: const Text("NEXT"),
+                  ),
+                ],
+              );
+            },
+          ),
+        ],
+      ),
+    );
+
+    // Speed Gauge
+    targets.add(
+      TargetFocus(
+        identify: "gauge",
+        keyTarget: _gaugeKey,
+        contents: [
+          TargetContent(
+            align: ContentAlign.bottom,
+            builder: (context, controller) {
+              return Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                   Text(
+                    "Speed Gauge",
+                    style: GoogleFonts.orbitron(
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                      fontSize: 20,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                   Text(
+                    "This high-precision display shows your current speed. It glows red if you exceed the limit!",
+                    style: GoogleFonts.inter(color: Colors.white),
+                  ),
+                  const SizedBox(height: 20),
+                  ElevatedButton(
+                    onPressed: () => controller.next(),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.white24,
+                      foregroundColor: Colors.white,
+                    ),
+                    child: const Text("NEXT"),
+                  ),
+                ],
+              );
+            },
+          ),
+        ],
+      ),
+    );
+
+    // HUD Mode
+    targets.add(
+      TargetFocus(
+        identify: "hud",
+        keyTarget: _hudKey,
+        contents: [
+          TargetContent(
+            align: ContentAlign.top,
+            builder: (context, controller) {
+              return Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                   Text(
+                    "HUD Mode",
+                    style: GoogleFonts.orbitron(
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                      fontSize: 20,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                   Text(
+                    "Tap here to flip the display. Perfect for projecting your speed onto the windshield at night.",
+                    style: GoogleFonts.inter(color: Colors.white),
+                  ),
+                  const SizedBox(height: 20),
+                  ElevatedButton(
+                    onPressed: () => controller.next(),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.white24,
+                      foregroundColor: Colors.white,
+                    ),
+                    child: const Text("NEXT"),
+                  ),
+                ],
+              );
+            },
+          ),
+        ],
+      ),
+    );
+
+    // Speed Limit
+    targets.add(
+      TargetFocus(
+        identify: "limit",
+        keyTarget: _limitKey,
+        contents: [
+          TargetContent(
+            align: ContentAlign.bottom,
+            builder: (context, controller) {
+              return Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                   Text(
+                    "Speed Limit",
+                    style: GoogleFonts.orbitron(
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                      fontSize: 20,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                   Text(
+                    "Set your maximum speed in settings. This indicator turns red and alerts you if you go too fast!",
+                    style: GoogleFonts.inter(color: Colors.white),
+                  ),
+                  const SizedBox(height: 20),
+                  ElevatedButton(
+                    onPressed: () => controller.next(),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.white24,
+                      foregroundColor: Colors.white,
+                    ),
+                    child: const Text("NEXT"),
+                  ),
+                ],
+              );
+            },
+          ),
+        ],
+      ),
+    );
+
+    // Theme Toggle
+    targets.add(
+      TargetFocus(
+        identify: "theme",
+        keyTarget: _themeKey,
+        contents: [
+          TargetContent(
+            align: ContentAlign.bottom,
+            builder: (context, controller) {
+              return Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                   Text(
+                    "Appearance Control",
+                    style: GoogleFonts.orbitron(
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                      fontSize: 20,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                   Text(
+                    "Switch between Light and Dark mode instantly to suit your driving conditions.",
+                    style: GoogleFonts.inter(color: Colors.white),
+                  ),
+                  const SizedBox(height: 20),
+                  ElevatedButton(
+                    onPressed: () => controller.next(),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.white24,
+                      foregroundColor: Colors.white,
+                    ),
+                    child: const Text("NEXT"),
+                  ),
+                ],
+              );
+            },
+          ),
+        ],
+      ),
+    );
+
+    // Start Button
+    targets.add(
+      TargetFocus(
+        identify: "start",
+        keyTarget: _startBtnKey,
+        contents: [
+          TargetContent(
+            align: ContentAlign.top,
+            builder: (context, controller) {
+              return Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                   Text(
+                    "Begin Your Journey",
+                    style: GoogleFonts.orbitron(
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                      fontSize: 20,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                   Text(
+                    "Tap START TRIP to begin tracking your route and stats.",
+                    style: GoogleFonts.inter(color: Colors.white),
+                  ),
+                  const SizedBox(height: 20),
+                  ElevatedButton(
+                    onPressed: () => controller.next(),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.white24,
+                      foregroundColor: Colors.white,
+                    ),
+                    child: const Text("FINISH"),
+                  ),
+                ],
+              );
+            },
+          ),
+        ],
+      ),
+    );
   }
 
   final TextEditingController _controller = TextEditingController();
@@ -78,6 +389,8 @@ class _DrivePageState extends State<DrivePage> {
       _allSpeeds.clear();
       _sessionMaxSpeed = 0;
       _sessionAvgSpeed = 0;
+      _allLatitudes.clear();
+      _allLongitudes.clear();
       _speedFilter = SimpleKalmanFilter(decisionNoise: 0.1, measurementNoise: 3, estimateError: 1); // Reset filter
       _lastPosition = null;
     });
@@ -100,6 +413,7 @@ class _DrivePageState extends State<DrivePage> {
   void _stopTrackingOnly() {
     _positionStream?.cancel();
     _tripTimer?.cancel();
+    _stopAlertLoop();
     _positionStream = null;
     _tripTimer = null;
     setState(() => _tracking = false);
@@ -156,10 +470,73 @@ class _DrivePageState extends State<DrivePage> {
         if (_recentSpeeds.length > _stabilityWindow) {
           _recentSpeeds.removeAt(0);
         }
+
+        // Record coordinates for path mapping
+        _allLatitudes.add(p.latitude);
+        _allLongitudes.add(p.longitude);
       });
     }
   
     _lastPosition = p;
+    _checkSpeedLimit();
+  }
+
+  void _checkSpeedLimit() {
+    final themeProvider = Provider.of<ThemeProvider>(context, listen: false);
+    final limit = themeProvider.speedLimit;
+
+    if (_speed >= limit) {
+      if (!_isOverLimit) {
+        _isOverLimit = true;
+        _startAlertLoop();
+      }
+    } else {
+      if (_isOverLimit) {
+        _isOverLimit = false;
+        _stopAlertLoop();
+      }
+    }
+  }
+
+  void _startAlertLoop() {
+    if (_alertTimer != null) return;
+    
+    // Initial alert
+    _triggerAlertsOnce();
+    
+    // Repeat every 2 seconds
+    _alertTimer = Timer.periodic(const Duration(seconds: 2), (timer) {
+      _triggerAlertsOnce();
+    });
+  }
+
+  void _stopAlertLoop() {
+    _alertTimer?.cancel();
+    _alertTimer = null;
+    Vibration.cancel();
+    FlutterRingtonePlayer().stop();
+  }
+
+  Future<void> _triggerAlertsOnce() async {
+    final provider = Provider.of<ThemeProvider>(context, listen: false);
+    
+    if (provider.enableVibrationAlert) {
+      final hasVibrator = await Vibration.hasVibrator();
+      if (hasVibrator == true) {
+        Vibration.vibrate(duration: 500, amplitude: 128);
+      }
+    }
+
+    if (provider.enableSoundAlert) {
+      try {
+        FlutterRingtonePlayer().playNotification(
+          looping: false,
+          asAlarm: false,
+        );
+      } catch (e) {
+        debugPrint('System sound failed: $e');
+      }
+    }
   }
 
   // ---------------- SAVE TRIP ----------------
@@ -182,6 +559,8 @@ class _DrivePageState extends State<DrivePage> {
       avgSpeed: avgSpeed.toDouble(),
       maxSpeed: maxSpeed.toDouble(),
       speedReadings: List<double>.from(_allSpeeds),
+      latitudes: List<double>.from(_allLatitudes),
+      longitudes: List<double>.from(_allLongitudes),
     );
 
     await Hive.box<TripModel>('trips').add(trip);
@@ -199,6 +578,8 @@ class _DrivePageState extends State<DrivePage> {
       _allSpeeds.clear();
       _lastPosition = null;
       _tracking = false;
+      _isOverLimit = false;
+      _stopAlertLoop();
     });
   }
 
@@ -207,12 +588,14 @@ class _DrivePageState extends State<DrivePage> {
     _controller.dispose();
     _positionStream?.cancel();
     _tripTimer?.cancel();
+    _stopAlertLoop();
     super.dispose();
   }
 
   // ---------------- BUILD ----------------
 
-  Color _getSpeedColor(double speed) {
+  Color _getSpeedColor(double speed, double limit) {
+    if (speed >= limit) return Colors.redAccent;
     if (speed < 40) return Colors.cyanAccent;
     if (speed < 80) return Colors.orangeAccent;
     if (speed < 120) return Colors.deepOrangeAccent;
@@ -228,222 +611,292 @@ class _DrivePageState extends State<DrivePage> {
     // Calculate dynamic size for responsiveness
     final size = MediaQuery.of(context).size;
     final gaugeSize = min(size.width * 0.75, 300.0);
-    final accentColor = _getSpeedColor(_speed);
+    
+    final themeProvider = Provider.of<ThemeProvider>(context);
+    final limit = themeProvider.speedLimit;
+    final accentColor = _getSpeedColor(_speed, limit);
 
     return Scaffold(
       backgroundColor: isDark ? Colors.black : Colors.white,
       body: SafeArea(
-        child: Center(
-          child: SingleChildScrollView(
-            child: Column(
-              children: [
-                const SizedBox(height: 20),
-                Transform(
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            return SingleChildScrollView(
+              child: ConstrainedBox(
+                constraints: BoxConstraints(minHeight: constraints.maxHeight),
+                child: IntrinsicHeight(
+                  child: Padding(
+                    padding: const EdgeInsets.all(20.0),
+                    child: Column(
+                      children: [
+              // TOP BAR: SIGNAL & SPEED LIMIT
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                   _SignalBars(key: _signalKey, accuracy: _accuracy, isDark: isDark),
+                   _ThemeToggle(
+                    key: _themeKey,
+                    isDark: isDark,
+                    onToggle: () {
+                      if (themeProvider.useSystemTheme) {
+                        themeProvider.toggleUseSystemTheme();
+                      }
+                      themeProvider.setTheme(isDark ? 'light' : 'dark');
+                    },
+                   ),
+                   _speedLimitSign(key: _limitKey, limit: limit, isDark: isDark, isOver: _speed >= limit),
+                ],
+              ),
+              const SizedBox(height: 10),
+              
+              // GAUGE AREA
+              Transform(
+                key: _gaugeKey,
+                alignment: Alignment.center,
+                transform: Matrix4.rotationY(_hudMode ? pi : 0),
+                child: Stack(
                   alignment: Alignment.center,
-                  transform: Matrix4.rotationY(_hudMode ? pi : 0),
-                  child: Stack(
-                    alignment: Alignment.center,
-                    children: [
-                      // HUD high-tech frame/glow
-                      if (_hudMode)
-                        Container(
-                          width: gaugeSize * 1.2,
-                          height: gaugeSize * 1.2,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            border: Border.all(
-                              color: accentColor.withValues(alpha: 0.1),
-                              width: 1,
-                            ),
+                  children: [
+                    // HUD high-tech frame/glow
+                    if (_hudMode)
+                      Container(
+                        width: gaugeSize * 1.2,
+                        height: gaugeSize * 1.2,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: accentColor.withValues(alpha: 0.1),
+                            width: 1,
                           ),
                         ),
-                      
-                      // Glow Background (Reactive)
-                      if (isDark)
-                        TweenAnimationBuilder<double>(
-                          tween: Tween<double>(begin: 0, end: _speed),
-                          duration: const Duration(milliseconds: 500),
-                          builder: (context, value, child) {
-                            return Container(
-                              width: gaugeSize * 0.8,
-                              height: gaugeSize * 0.8,
-                              decoration: BoxDecoration(
-                                shape: BoxShape.circle,
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: _getSpeedColor(value).withOpacity(0.15),
-                                    blurRadius: 50,
-                                    spreadRadius: 10,
-                                  ),
-                                ],
-                              ),
-                            );
-                          },
-                        ),
+                      ),
+                    
+                    // Glow Background (Reactive)
+                    if (isDark)
                       TweenAnimationBuilder<double>(
                         tween: Tween<double>(begin: 0, end: _speed),
-                        duration: const Duration(milliseconds: 300),
+                        duration: const Duration(milliseconds: 500),
                         builder: (context, value, child) {
-                          return CustomPaint(
-                            size: Size(gaugeSize, gaugeSize),
-                            painter: _FuturisticGaugePainter(
-                              speed: value,
-                              maxSpeed: _maxSpeed,
-                              isDark: isDark,
-                              accentColor: _getSpeedColor(value),
+                          return Container(
+                            width: gaugeSize * 0.8,
+                            height: gaugeSize * 0.8,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              boxShadow: [
+                                BoxShadow(
+                                  color: _getSpeedColor(value, limit).withValues(alpha: 0.15),
+                                  blurRadius: 50,
+                                  spreadRadius: 10,
+                                ),
+                              ],
                             ),
                           );
                         },
                       ),
-                      Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          TweenAnimationBuilder<double>(
-                            tween: Tween<double>(begin: 0, end: _speed),
-                            duration: const Duration(milliseconds: 300),
-                            builder: (context, value, child) {
-                              return Text(
-                                value.toStringAsFixed(0),
+                    TweenAnimationBuilder<double>(
+                      tween: Tween<double>(begin: 0, end: _speed),
+                      duration: const Duration(milliseconds: 300),
+                      builder: (context, value, child) {
+                        return CustomPaint(
+                          size: Size(gaugeSize, gaugeSize),
+                          painter: _FuturisticGaugePainter(
+                            speed: value,
+                            maxSpeed: _maxSpeed,
+                            isDark: isDark,
+                            accentColor: _getSpeedColor(value, limit),
+                          ),
+                        );
+                      },
+                    ),
+                    Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        TweenAnimationBuilder<double>(
+                          tween: Tween<double>(begin: 0, end: _speed),
+                          duration: const Duration(milliseconds: 300),
+                          builder: (context, value, child) {
+                            return Text(
+                              value.toStringAsFixed(0),
+                              style: GoogleFonts.orbitron(
+                                fontSize: gaugeSize * 0.3,
+                                fontWeight: FontWeight.w900,
+                                color: textColor,
+                                letterSpacing: -2,
+                                shadows: isDark
+                                    ? [
+                                        Shadow(
+                                            color: _getSpeedColor(value, limit)
+                                                .withValues(alpha: 0.5),
+                                            blurRadius: 20),
+                                      ]
+                                    : null,
+                              ),
+                            );
+                          },
+                        ),
+                        Text(
+                          'KM/H',
+                          style: GoogleFonts.orbitron(
+                            fontSize: gaugeSize * 0.05,
+                            letterSpacing: 4,
+                            color: secondaryTextColor.withValues(alpha: 0.7),
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    ),
+
+                    // HUD Scanlines Effect
+                    if (_hudMode)
+                      IgnorePointer(
+                        child: SizedBox(
+                          width: gaugeSize,
+                          height: gaugeSize,
+                          child: CustomPaint(
+                            painter: _HUDScannerPainter(color: accentColor),
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 10),
+
+              // TRIP DATA GRID
+              Row(
+                children: [
+                  Expanded(
+                    child: _glassBlock(
+                      label: 'DISTANCE',
+                      value: (_distance / 1000).toStringAsFixed(2),
+                      unit: 'KM',
+                      icon: Icons.map_outlined,
+                      isDark: isDark,
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: _glassBlock(
+                      label: 'DURATION',
+                      value: _formatDuration(_tripDuration),
+                      unit: 'MIN',
+                      icon: Icons.timer_outlined,
+                      isDark: isDark,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              
+              Row(
+                children: [
+                   Expanded(
+                    child: _actionBlock(
+                      key: _hudKey,
+                      label: 'HUD MODE',
+                      value: _hudMode ? 'ON' : 'OFF',
+                      icon: Icons.flip,
+                      isActive: _hudMode,
+                      onTap: () => setState(() => _hudMode = !_hudMode),
+                      isDark: isDark,
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Container(
+                         padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            gradient: isDark
+                                ? LinearGradient(
+                                    begin: Alignment.topLeft,
+                                    end: Alignment.bottomRight,
+                                    colors: [
+                                      Colors.white.withValues(alpha: 0.1),
+                                      Colors.white.withValues(alpha: 0.05),
+                                    ],
+                                  )
+                                : LinearGradient(
+                                    begin: Alignment.topLeft,
+                                    end: Alignment.bottomRight,
+                                    colors: [
+                                      Colors.black.withValues(alpha: 0.05),
+                                      Colors.black.withValues(alpha: 0.02),
+                                    ],
+                                  ),
+                            borderRadius: BorderRadius.circular(24),
+                            border: Border.all(
+                              width: 1.5,
+                              color: isDark
+                                  ? Colors.white.withValues(alpha: 0.15)
+                                  : Colors.black.withValues(alpha: 0.1),
+                            ),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Icon(Icons.bolt, size: 20, color: secondaryTextColor),
+                              const SizedBox(height: 12),
+                              Text(
+                                '${_allSpeeds.isEmpty ? 0 : (_allSpeeds.reduce(max)).toStringAsFixed(0)}',
                                 style: GoogleFonts.orbitron(
-                                  fontSize: gaugeSize * 0.3,
-                                  fontWeight: FontWeight.w900,
                                   color: textColor,
-                                  letterSpacing: -2,
-                                  shadows: isDark
-                                      ? [
-                                          Shadow(
-                                              color: _getSpeedColor(value)
-                                                  .withOpacity(0.5),
-                                              blurRadius: 20),
-                                        ]
-                                      : null,
+                                  fontSize: 22,
+                                  fontWeight: FontWeight.bold,
                                 ),
-                              );
-                            },
+                              ),
+                               Text(
+                                'MAX SPEED',
+                                style: GoogleFonts.inter(
+                                  color: secondaryTextColor,
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w600,
+                                  letterSpacing: 1.2,
+                                ),
+                              ),
+                            ],
                           ),
-                          Text(
-                            'KM/H',
-                            style: GoogleFonts.orbitron(
-                              fontSize: gaugeSize * 0.05,
-                              letterSpacing: 4,
-                              color: secondaryTextColor.withOpacity(0.7),
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ],
-                      ),
-
-                      // HUD Scanlines Effect
-                      if (_hudMode)
-                        IgnorePointer(
-                          child: Container(
-                            width: gaugeSize,
-                            height: gaugeSize,
-                            child: CustomPaint(
-                              painter: _HUDScannerPainter(color: accentColor),
-                            ),
-                          ),
-                        ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 32),
-
-                // GLASS BLOCKS
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 20),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: _glassBlock(
-                          label: 'DISTANCE',
-                          value: '${(_distance / 1000).toStringAsFixed(2)}',
-                          unit: 'KM',
-                          icon: Icons.map_outlined,
-                          isDark: isDark,
-                        ),
-                      ),
-                      const SizedBox(width: 16),
-                      Expanded(
-                        child: _glassBlock(
-                          label: 'DURATION',
-                          value: _formatDuration(_tripDuration),
-                          unit: 'MIN',
-                          icon: Icons.timer_outlined,
-                          isDark: isDark,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 16),
-                const SizedBox(height: 16),
-
-                const SizedBox(height: 16),
-
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 20),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: _glassBlock(
-                          label: 'SIGNAL',
-                          value: '±${_accuracy.toStringAsFixed(0)}',
-                          unit: 'METERS',
-                          icon: Icons.gps_fixed,
-                          isDark: isDark,
-                          accent:
-                              _accuracy <= 10 ? Colors.greenAccent : Colors.orangeAccent,
-                          extraChild: _PulseSignal(accuracy: _accuracy),
-                        ),
-                      ),
-                      const SizedBox(width: 16),
-                      Expanded(
-                        child: _actionBlock(
-                          label: 'HUD MODE',
-                          value: _hudMode ? 'ON' : 'OFF',
-                          icon: Icons.flip,
-                          isActive: _hudMode,
-                          onTap: () => setState(() => _hudMode = !_hudMode),
-                          isDark: isDark,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 40),
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 20),
-                  child: ElevatedButton(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: _tracking ? Colors.redAccent : Colors.greenAccent.shade700,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 44, vertical: 12),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                      elevation: 8,
-                      shadowColor: _tracking ? Colors.redAccent.withOpacity(0.5) : Colors.greenAccent.withOpacity(0.5),
                     ),
-                    onPressed: _tracking
-                        ? () {
-                            _stopTrackingOnly();
-                            _confirmSaveTrip();
-                          }
-                        : _startTrip,
-                    child: Text(
-                      _tracking ? 'END TRIP' : 'START TRIP',
-                      style: GoogleFonts.inter(
-                        fontWeight: FontWeight.w700,
-                        letterSpacing: 1,
-                      ),
+                  ),
+                ],
+              ),
+              
+              const SizedBox(height: 20),
+
+              // START/END TRIP BUTTON
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: _tracking ? Colors.redAccent : Colors.greenAccent.shade700,
+                  foregroundColor: Colors.white,
+                  minimumSize: const Size(double.infinity, 56),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  elevation: 8,
+                  shadowColor: _tracking ? Colors.redAccent.withValues(alpha: 0.5) : Colors.greenAccent.withValues(alpha: 0.5),
+                ),
+                onPressed: _tracking
+                    ? () {
+                        _stopTrackingOnly();
+                        _confirmSaveTrip();
+                      }
+                    : _startTrip,
+                key: _startBtnKey,
+                child: Text(
+                  _tracking ? 'END TRIP' : 'START TRIP',
+                  style: GoogleFonts.inter(
+                    fontWeight: FontWeight.w700,
+                    fontSize: 18,
+                    letterSpacing: 1,
+                  ),
+                ),
+              ),
+                      ],
                     ),
                   ),
                 ),
-              ],
-            ),
-          ),
+              ),
+            );
+          },
         ),
       ),
     );
@@ -473,24 +926,24 @@ class _DrivePageState extends State<DrivePage> {
           end: Alignment.bottomRight,
           colors: isDark
               ? [
-                  Colors.white.withOpacity(0.1),
-                  Colors.white.withOpacity(0.05),
+                  Colors.white.withValues(alpha: 0.1),
+                  Colors.white.withValues(alpha: 0.05),
                 ]
               : [
-                  Colors.black.withOpacity(0.05),
-                  Colors.black.withOpacity(0.02),
+                  Colors.black.withValues(alpha: 0.05),
+                  Colors.black.withValues(alpha: 0.02),
                 ],
         ),
         borderRadius: BorderRadius.circular(24),
         border: Border.all(
           width: 1.5,
           color: isDark
-              ? Colors.white.withOpacity(0.15)
-              : Colors.black.withOpacity(0.1),
+              ? Colors.white.withValues(alpha: 0.15)
+              : Colors.black.withValues(alpha: 0.1),
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.1),
+            color: Colors.black.withValues(alpha: 0.1),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -532,6 +985,7 @@ class _DrivePageState extends State<DrivePage> {
   }
 
   Widget _actionBlock({
+    Key? key,
     required String label,
     required String value,
     required IconData icon,
@@ -541,6 +995,7 @@ class _DrivePageState extends State<DrivePage> {
   }) {
     final accent = Theme.of(context).colorScheme.primary;
     return GestureDetector(
+      key: key,
       onTap: onTap,
       child: Container(
         padding: const EdgeInsets.all(16),
@@ -549,30 +1004,30 @@ class _DrivePageState extends State<DrivePage> {
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
               colors: isActive
-                  ? [accent.withOpacity(0.2), accent.withOpacity(0.05)]
+                  ? [accent.withValues(alpha: 0.2), accent.withValues(alpha: 0.05)]
                   : (isDark
                       ? [
-                          Colors.white.withOpacity(0.1),
-                          Colors.white.withOpacity(0.05)
+                          Colors.white.withValues(alpha: 0.1),
+                          Colors.white.withValues(alpha: 0.05)
                         ]
                       : [
-                          Colors.black.withOpacity(0.05),
-                          Colors.black.withOpacity(0.02)
+                          Colors.black.withValues(alpha: 0.05),
+                          Colors.black.withValues(alpha: 0.02)
                         ])),
           borderRadius: BorderRadius.circular(24),
           border: Border.all(
             width: 1.5,
             color: isActive
-                ? accent.withOpacity(0.5)
+                ? accent.withValues(alpha: 0.5)
                 : (isDark
-                    ? Colors.white.withOpacity(0.15)
-                    : Colors.black.withOpacity(0.1)),
+                    ? Colors.white.withValues(alpha: 0.15)
+                    : Colors.black.withValues(alpha: 0.1)),
           ),
           boxShadow: [
             BoxShadow(
               color: isActive
-                  ? accent.withOpacity(0.1)
-                  : Colors.black.withOpacity(0.1),
+                  ? accent.withValues(alpha: 0.1)
+                  : Colors.black.withValues(alpha: 0.1),
               blurRadius: 10,
               offset: const Offset(0, 4),
             ),
@@ -624,7 +1079,7 @@ class _DrivePageState extends State<DrivePage> {
         height: 46,
         alignment: Alignment.center,
         decoration: BoxDecoration(
-          color: color.withOpacity(0.15),
+          color: color.withValues(alpha: 0.15),
           borderRadius: BorderRadius.circular(12),
           border: Border.all(color: color),
         ),
@@ -717,7 +1172,7 @@ class _DrivePageState extends State<DrivePage> {
                 ),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withOpacity(0.3),
+                    color: Colors.black.withValues(alpha: 0.3),
                     blurRadius: 20,
                     offset: const Offset(0, 10),
                   ),
@@ -735,8 +1190,8 @@ class _DrivePageState extends State<DrivePage> {
                           height: 42,
                           decoration: BoxDecoration(
                             color: isDark
-                                ? Colors.white.withOpacity(0.08)
-                                : Colors.black.withOpacity(0.06),
+                                ? Colors.white.withValues(alpha: 0.08)
+                                : Colors.black.withValues(alpha: 0.06),
                             shape: BoxShape.circle,
                             border: Border.all(
                               color: isDark ? Colors.white10 : Colors.black12,
@@ -815,19 +1270,38 @@ class _DrivePageState extends State<DrivePage> {
                     child: TextField(
                       controller: _controller,
                       autofocus: true,
-                      style:
-                          TextStyle(color: isDark ? Colors.white : Colors.black),
+                      cursorColor: isDark ? Colors.white : Colors.blueAccent,
+                      style: GoogleFonts.inter(
+                        color: isDark ? Colors.white : Colors.black,
+                        fontSize: 16,
+                      ),
                       decoration: InputDecoration(
                         hintText: 'Trip name',
-                        hintStyle: TextStyle(
-                            color: isDark ? Colors.grey : Colors.grey.shade400),
+                        hintStyle: GoogleFonts.inter(
+                          color: isDark ? Colors.white38 : Colors.black38,
+                        ),
                         filled: true,
-                        fillColor: isDark ? Colors.black : Colors.grey.shade200,
+                        fillColor: isDark ? Colors.white.withValues(alpha: 0.05) : Colors.black.withValues(alpha: 0.05),
                         contentPadding: const EdgeInsets.symmetric(
-                            horizontal: 14, vertical: 14),
+                            horizontal: 16, vertical: 16),
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
-                          borderSide: BorderSide.none,
+                          borderSide: BorderSide(
+                            color: isDark ? Colors.white24 : Colors.black12,
+                          ),
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide(
+                            color: isDark ? Colors.white24 : Colors.black12,
+                          ),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide(
+                            color: isDark ? Colors.blueAccent : Colors.blueAccent,
+                            width: 2,
+                          ),
                         ),
                       ),
                     ),
@@ -886,7 +1360,7 @@ class _DrivePageState extends State<DrivePage> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
       decoration: BoxDecoration(
-        color: isDark ? Colors.white.withOpacity(0.06) : Colors.black12,
+        color: isDark ? Colors.white.withValues(alpha: 0.06) : Colors.black12,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
           color: isDark ? Colors.white10 : Colors.black12,
@@ -943,8 +1417,8 @@ class _FuturisticGaugePainter extends CustomPainter {
     // Background Track
     final trackPaint = Paint()
       ..color = isDark
-          ? Colors.white.withOpacity(0.05)
-          : Colors.black.withOpacity(0.05)
+          ? Colors.white.withValues(alpha: 0.05)
+          : Colors.black.withValues(alpha: 0.05)
       ..style = PaintingStyle.stroke
       ..strokeWidth = strokeWidth
       ..strokeCap = StrokeCap.round;
@@ -959,13 +1433,13 @@ class _FuturisticGaugePainter extends CustomPainter {
 
     // Tick Marks
     final tickPaint = Paint()
-      ..color = isDark ? Colors.white.withOpacity(0.3) : Colors.black.withOpacity(0.3)
+      ..color = isDark ? Colors.white.withValues(alpha: 0.3) : Colors.black.withValues(alpha: 0.3)
       ..strokeWidth = 2
       ..strokeCap = StrokeCap.round;
 
     final int tickCount = 40;
     final double tickRadius = radius - strokeWidth * 1.5;
-    final double totalAngle = 1.4 * pi + 1.2 * pi; // Start to end angle span
+    // final double totalAngle = 1.4 * pi + 1.2 * pi; // Start to end angle span
 
     for (int i = 0; i <= tickCount; i++) {
       final double tickAngle = -1.2 * pi + (i / tickCount) * 2.6 * pi;
@@ -986,7 +1460,7 @@ class _FuturisticGaugePainter extends CustomPainter {
     final progressPaint = Paint()
       ..shader = SweepGradient(
         colors: [
-         accentColor.withOpacity(0.1),
+         accentColor.withValues(alpha: 0.1),
          accentColor,
          Colors.white,
         ],
@@ -1005,7 +1479,7 @@ class _FuturisticGaugePainter extends CustomPainter {
     // Outer Glow
     if (isDark) {
       final glowPaint = Paint()
-        ..color = accentColor.withOpacity(0.3)
+        ..color = accentColor.withValues(alpha: 0.3)
         ..style = PaintingStyle.stroke
         ..strokeWidth = strokeWidth + 8
         ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 12);
@@ -1051,59 +1525,136 @@ class _FuturisticGaugePainter extends CustomPainter {
       old.speed != speed || old.isDark != isDark;
 }
 
-class _PulseSignal extends StatefulWidget {
+class _SignalBars extends StatelessWidget {
   final double accuracy;
-  const _PulseSignal({required this.accuracy});
-
-  @override
-  State<_PulseSignal> createState() => _PulseSignalState();
-}
-
-class _PulseSignalState extends State<_PulseSignal> with SingleTickerProviderStateMixin {
-  late AnimationController _controller;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = AnimationController(
-      vsync: this,
-      duration: const Duration(seconds: 2),
-    )..repeat();
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
+  final bool isDark;
+  const _SignalBars({super.key, required this.accuracy, required this.isDark});
 
   @override
   Widget build(BuildContext context) {
-    final isGood = widget.accuracy <= 10;
-    final color = isGood ? Colors.greenAccent : Colors.orangeAccent;
+    int bars = 0;
+    if (accuracy <= 10) {
+      bars = 4;
+    } else if (accuracy <= 25) {
+      bars = 3;
+    } else if (accuracy <= 50) {
+      bars = 2;
+    } else if (accuracy <= 100) {
+      bars = 1;
+    }
 
-    return AnimatedBuilder(
-      animation: _controller,
-      builder: (context, child) {
-        return Row(
+    Color barColor = accuracy <= 25 ? Colors.greenAccent : (accuracy <= 60 ? Colors.orangeAccent : Colors.redAccent);
+    if (!isDark && accuracy > 25) barColor = Colors.orange.shade700;
+
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.end,
+      children: [
+        Icon(Icons.gps_fixed, size: 14, color: isDark ? Colors.white38 : Colors.black38),
+        const SizedBox(width: 6),
+        ...List.generate(4, (index) {
+          bool active = index < bars;
+          return Container(
+            margin: const EdgeInsets.only(left: 2),
+            width: 4,
+            height: 4.0 + (index * 3),
+            decoration: BoxDecoration(
+              color: active ? barColor : (isDark ? Colors.white12 : Colors.black12),
+              borderRadius: BorderRadius.circular(1),
+            ),
+          );
+        }),
+      ],
+    );
+  }
+}
+
+Widget _speedLimitSign({Key? key, required double limit, required bool isDark, required bool isOver}) {
+  final limitText = limit.toStringAsFixed(0);
+  final isThreeDigits = limitText.length >= 3;
+  
+  return Container(
+    key: key,
+    padding: const EdgeInsets.all(2),
+    width: 44,
+    height: 44,
+    decoration: BoxDecoration(
+      shape: BoxShape.circle,
+      color: Colors.white,
+      border: Border.all(color: Colors.red, width: 3.5),
+      boxShadow: isOver ? [
+        BoxShadow(color: Colors.red.withValues(alpha: 0.5), blurRadius: 10, spreadRadius: 2)
+      ] : null,
+    ),
+    child: Center(
+      child: Text(
+        limitText,
+        style: GoogleFonts.inter(
+          color: Colors.black,
+          fontWeight: FontWeight.w900,
+          fontSize: isThreeDigits ? 14 : 16,
+        ),
+      ),
+    ),
+  );
+}
+
+class _ThemeToggle extends StatelessWidget {
+  final bool isDark;
+  final VoidCallback onToggle;
+  const _ThemeToggle({super.key, required this.isDark, required this.onToggle});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onToggle,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 400),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(30),
+          color: isDark ? Colors.white.withValues(alpha: 0.1) : Colors.black.withValues(alpha: 0.05),
+          border: Border.all(
+            color: isDark ? Colors.orangeAccent.withValues(alpha: 0.3) : Colors.indigoAccent.withValues(alpha: 0.3),
+            width: 1.5,
+          ),
+          boxShadow: [
+            if (isDark)
+              BoxShadow(
+                color: Colors.orangeAccent.withValues(alpha: 0.15),
+                blurRadius: 12,
+                spreadRadius: 1,
+              )
+          ],
+        ),
+        child: Row(
           mainAxisSize: MainAxisSize.min,
-          children: List.generate(3, (index) {
-            final lag = index * 0.2;
-            final t = (_controller.value - lag).clamp(0.0, 1.0);
-            final scale = (sin(t * pi * 2) + 1.2) / 2.2;
-            
-            return Container(
-              margin: const EdgeInsets.symmetric(horizontal: 1.5),
-              width: 3,
-              height: 12 * scale * (index == 1 ? 1.5 : 1),
-              decoration: BoxDecoration(
-                color: color.withOpacity(0.4 + (0.6 * scale)),
-                borderRadius: BorderRadius.circular(2),
+          children: [
+            AnimatedSwitcher(
+              duration: const Duration(milliseconds: 300),
+              transitionBuilder: (Widget child, Animation<double> animation) {
+                return RotationTransition(turns: animation, child: FadeTransition(opacity: animation, child: child));
+              },
+              child: Icon(
+                isDark ? Icons.wb_sunny_rounded : Icons.nightlight_round,
+                key: ValueKey<bool>(isDark),
+                size: 18,
+                color: isDark ? Colors.orangeAccent : Colors.indigoAccent,
               ),
-            );
-          }),
-        );
-      },
+            ),
+            const SizedBox(width: 8),
+            Text(
+              isDark ? 'LIGHT' : 'DARK',
+              style: GoogleFonts.orbitron(
+                fontSize: 9,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 1.2,
+                color: isDark ? Colors.white : Colors.black87,
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
@@ -1115,7 +1666,7 @@ class _HUDScannerPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final paint = Paint()
-      ..color = color.withOpacity(0.05)
+      ..color = color.withValues(alpha: 0.05)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1.0;
 
@@ -1126,7 +1677,7 @@ class _HUDScannerPainter extends CustomPainter {
 
     // Outer corner accents
     final accentPaint = Paint()
-      ..color = color.withOpacity(0.3)
+      ..color = color.withValues(alpha: 0.3)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 2.0;
 

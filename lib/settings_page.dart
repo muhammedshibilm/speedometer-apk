@@ -1,14 +1,68 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:hive/hive.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:flutter_ringtone_player/flutter_ringtone_player.dart';
+import 'package:vibration/vibration.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 
 import 'trip_model.dart';
 import 'theme_provider.dart';
+import 'tutorial_page.dart';
 
-class SettingsPage extends StatelessWidget {
+class SettingsPage extends StatefulWidget {
   const SettingsPage({super.key});
+
+  @override
+  State<SettingsPage> createState() => _SettingsPageState();
+}
+
+class _SettingsPageState extends State<SettingsPage> {
+  String _appVersion = 'Loading...';
+
+  @override
+  void initState() {
+    super.initState();
+    _initPackageInfo();
+  }
+
+  Future<void> _initPackageInfo() async {
+    final info = await PackageInfo.fromPlatform();
+    setState(() {
+      _appVersion = '${info.version} (Build ${info.buildNumber})';
+    });
+  }
+
+  @override
+  void dispose() {
+    super.dispose();
+  }
+
+  Future<void> _testAlert() async {
+    final themeProvider = Provider.of<ThemeProvider>(context, listen: false);
+
+    // Trigger Vibration if enabled
+    if (themeProvider.enableVibrationAlert) {
+      final hasVibrator = await Vibration.hasVibrator();
+      if (hasVibrator == true) {
+        Vibration.vibrate(duration: 500, amplitude: 128);
+      }
+    }
+
+    // Trigger Sound if enabled
+    if (themeProvider.enableSoundAlert) {
+      try {
+        FlutterRingtonePlayer().playNotification(
+          looping: false,
+          asAlarm: false,
+        );
+      } catch (e) {
+        debugPrint('System sound test failed: $e');
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -63,17 +117,58 @@ class SettingsPage extends StatelessWidget {
                     isDark: isDark,
                   ),
                   const SizedBox(height: 24),
-                  _sectionHeader('APPEARANCE', isDark),
+                  _sectionHeader('SPEED ALERTS', isDark),
                   _glassSettingsTile(
                     context,
-                    icon: Icons.palette_outlined,
-                    title: 'Theme Mode',
-                    subtitle: themeProvider.useSystemTheme
-                        ? 'System Default'
-                        : (themeProvider.isDarkMode ? 'Dark Mode' : 'Light Mode'),
+                    icon: Icons.speed,
+                    title: 'Speed Limit',
+                    subtitle: '${themeProvider.speedLimit.toStringAsFixed(0)} KM/H',
+                    trailing: SizedBox(
+                      width: 150,
+                      child: SliderTheme(
+                        data: SliderTheme.of(context).copyWith(
+                          activeTrackColor: Colors.blueAccent,
+                          inactiveTrackColor: isDark ? Colors.white10 : Colors.black.withValues(alpha: 0.1),
+                          thumbColor: Colors.blueAccent,
+                          overlayColor: Colors.blueAccent.withValues(alpha: 0.1),
+                        ),
+                        child: Slider(
+                          value: themeProvider.speedLimit,
+                          min: 20,
+                          max: 200,
+                          divisions: 18,
+                          onChanged: (val) => themeProvider.setSpeedLimit(val),
+                        ),
+                      ),
+                    ),
+                    isDark: isDark,
+                  ),
+                  _glassSettingsTile(
+                    context,
+                    icon: Icons.notifications_active_outlined,
+                    title: 'Alert Mode',
+                    subtitle: themeProvider.alertMode,
                     trailing: Icon(Icons.chevron_right,
                         color: isDark ? Colors.white54 : Colors.black54),
-                    onTap: () => _showThemePicker(context, themeProvider, isDark),
+                    onTap: () => _showAlertPicker(context, themeProvider, isDark),
+                    isDark: isDark,
+                  ),
+               
+                  const SizedBox(height: 24),
+                  _sectionHeader('HELP & SUPPORT', isDark),
+                  _glassSettingsTile(
+                    context,
+                    icon: Icons.help_outline,
+                    title: 'Watch Tutorial',
+                    subtitle: 'Learn how to use Speedy features',
+                    trailing: Icon(Icons.chevron_right,
+                        color: isDark ? Colors.white54 : Colors.black54),
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (context) => const TutorialPage()),
+                      );
+                    },
                     isDark: isDark,
                   ),
                   const SizedBox(height: 24),
@@ -82,7 +177,7 @@ class SettingsPage extends StatelessWidget {
                     context,
                     icon: Icons.info_outline,
                     title: 'Version',
-                    subtitle: '1.0.0 (Build 100)',
+                    subtitle: _appVersion,
                     isDark: isDark,
                   ),
                   const SizedBox(height: 12),
@@ -313,6 +408,67 @@ class SettingsPage extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+
+  void _showAlertPicker(
+      BuildContext context, ThemeProvider themeProvider, bool isDark) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (context) => Container(
+        decoration: BoxDecoration(
+          color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Select Alert Mode',
+              style: GoogleFonts.outfit(
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+                color: isDark ? Colors.white : Colors.black,
+              ),
+            ),
+            const SizedBox(height: 20),
+            _alertOption(context, themeProvider, 'None', isDark),
+            _alertOption(context, themeProvider, 'Vibration Only', isDark),
+            _alertOption(context, themeProvider, 'Sound Only', isDark),
+            _alertOption(context, themeProvider, 'Both', isDark),
+            const SizedBox(height: 20),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _alertOption(BuildContext context, ThemeProvider provider,
+      String mode, bool isDark) {
+    bool isSelected = provider.alertMode == mode;
+
+    return ListTile(
+      contentPadding: EdgeInsets.zero,
+      title: Text(
+        mode,
+        style: GoogleFonts.inter(
+          color: isSelected
+              ? Colors.blueAccent
+              : (isDark ? Colors.white : Colors.black),
+          fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+        ),
+      ),
+      trailing: isSelected
+          ? const Icon(Icons.check_circle, color: Colors.blueAccent)
+          : null,
+      onTap: () {
+        provider.setAlertMode(mode);
+        Navigator.pop(context);
+        _testAlert(); // Play test alert to confirm selection
+      },
     );
   }
 

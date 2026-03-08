@@ -5,7 +5,8 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:intl/intl.dart';
-import 'package:fl_chart/fl_chart.dart' as fl_chart;
+import 'package:flutter_map/flutter_map.dart';
+import 'package:latlong2/latlong.dart';
 
 import 'trip_model.dart';
 
@@ -176,7 +177,7 @@ class TripCard extends StatefulWidget {
 }
 
 class _TripCardState extends State<TripCard> {
-  String _selectedGraph = 'speed';
+
 
   @override
   Widget build(BuildContext context) {
@@ -229,7 +230,7 @@ class _TripCardState extends State<TripCard> {
                         color: Colors.blueAccent.withValues(alpha: 0.2),
                         shape: BoxShape.circle,
                       ),
-                      child: const Icon(Icons.directions_car, color: Colors.blueAccent, size: 20),
+                      child: const Icon(Icons.route, color: Colors.blueAccent, size: 20),
                     ),
                     const SizedBox(width: 12),
                     Expanded(
@@ -256,9 +257,9 @@ class _TripCardState extends State<TripCard> {
                       ),
                     ),
                     IconButton(
-                      onPressed: () => _showGraphDialog(context),
-                      icon: Icon(Icons.show_chart, color: widget.isDark ? Colors.white70 : Colors.black54),
-                      tooltip: 'View Graph',
+                      onPressed: () => _showMapDialog(context),
+                      icon: Icon(Icons.map_outlined, color: widget.isDark ? Colors.white70 : Colors.black54),
+                      tooltip: 'View Map',
                     ),
                   ],
                 ),
@@ -353,271 +354,89 @@ class _TripCardState extends State<TripCard> {
     );
   }
 
-  void _showGraphDialog(BuildContext context) {
+  void _showMapDialog(BuildContext context) {
+    if (widget.trip.latitudes.isEmpty || widget.trip.longitudes.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No location data available for this trip')),
+      );
+      return;
+    }
+
+    final points = <LatLng>[];
+    for (int i = 0; i < widget.trip.latitudes.length; i++) {
+        points.add(LatLng(widget.trip.latitudes[i], widget.trip.longitudes[i]));
+    }
+
+    if (points.isEmpty) return;
+
+    final startPoint = points.first;
+    final endPoint = points.last;
+
     showDialog(
       context: context,
       builder: (ctx) {
-        return StatefulBuilder(
-          builder: (context, setStateDialog) {
-            return AlertDialog(
-              backgroundColor:
-                  widget.isDark ? Colors.grey.shade900 : Colors.white,
-              title: Text(
-                'Trip Graph',
-                style: GoogleFonts.inter(color: widget.textColor),
+        return AlertDialog(
+          backgroundColor: widget.isDark ? Colors.grey.shade900 : Colors.white,
+          contentPadding: EdgeInsets.zero,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+          title: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+               Text(
+                'Trip Path',
+                style: GoogleFonts.inter(color: widget.textColor, fontSize: 18, fontWeight: FontWeight.bold),
               ),
-              content: SingleChildScrollView(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    /// Graph Type Dropdown
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12),
-                      decoration: BoxDecoration(
-                        border: Border.all(
-                          color: widget.isDark
-                              ? Colors.grey.shade700
-                              : Colors.grey.shade300,
-                        ),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: DropdownButton<String>(
-                        value: _selectedGraph,
-                        isExpanded: true,
-                        underline: const SizedBox(),
-                        dropdownColor:
-                            widget.isDark ? Colors.grey.shade800 : Colors.white,
-                        items: [
-                          DropdownMenuItem(
-                            value: 'speed',
-                            child: Text(
-                              'Speed Over Time',
-                              style: GoogleFonts.inter(
-                                color: widget.textColor,
-                              ),
-                            ),
-                          ),
-                          DropdownMenuItem(
-                            value: 'speedavg',
-                            child: Text(
-                              'Speed vs Average',
-                              style: GoogleFonts.inter(
-                                color: widget.textColor,
-                              ),
-                            ),
-                          ),
-                        ],
-                        onChanged: (val) {
-                          setStateDialog(() {
-                            _selectedGraph = val ?? 'speed';
-                          });
-                        },
-                      ),
-                    ),
-                    const SizedBox(height: 20),
-
-                    /// Graph Display
-                    SizedBox(
-                      height: 300,
-                      width: 350,
-                      child: _buildGraph(),
-                    ),
-                  ],
+              IconButton(onPressed: () => Navigator.pop(ctx), icon: const Icon(Icons.close))
+            ],
+          ),
+          content: SizedBox(
+            height: 400,
+            width: double.maxFinite,
+            child: ClipRRect(
+              borderRadius: const BorderRadius.vertical(bottom: Radius.circular(24)),
+              child: FlutterMap(
+                options: MapOptions(
+                  initialCenter: startPoint,
+                  initialZoom: 15,
                 ),
+                children: [
+                  TileLayer(
+                    urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                    userAgentPackageName: 'com.example.speedy',
+                  ),
+                  PolylineLayer(
+                    polylines: [
+                      Polyline(
+                        points: points,
+                        strokeWidth: 4,
+                        color: Colors.blueAccent,
+                      ),
+                    ],
+                  ),
+                  MarkerLayer(
+                    markers: [
+                      Marker(
+                        point: startPoint,
+                        width: 40,
+                        height: 40,
+                        child: const Icon(Icons.location_on, color: Colors.green, size: 30),
+                      ),
+                      Marker(
+                        point: endPoint,
+                        width: 40,
+                        height: 40,
+                        child: const Icon(Icons.flag, color: Colors.red, size: 30),
+                      ),
+                    ],
+                  ),
+                ],
               ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(ctx),
-                  child: const Text('Close'),
-                ),
-              ],
-            );
-          },
+            ),
+          ),
         );
       },
     );
   }
 
-  Widget _buildGraph() {
-    if (widget.trip.speedReadings.isEmpty) {
-      return Center(
-        child: Text(
-          'No speed data available',
-          style: GoogleFonts.inter(color: widget.secondaryTextColor),
-        ),
-      );
-    }
-
-    if (_selectedGraph == 'speed') {
-      return _buildSpeedGraph();
-    } else {
-      return _buildSpeedVsAverageGraph();
-    }
-  }
-
-  Widget _buildSpeedGraph() {
-    final speeds = widget.trip.speedReadings;
-    final maxSpeed = widget.trip.maxSpeed;
-
-    List<fl_chart.FlSpot> spots = [];
-    for (int i = 0; i < speeds.length; i++) {
-      spots.add(fl_chart.FlSpot(i.toDouble(), speeds[i]));
-    }
-
-    return fl_chart.LineChart(
-      fl_chart.LineChartData(
-        gridData: fl_chart.FlGridData(
-          show: true,
-          drawVerticalLine: false,
-          horizontalInterval: maxSpeed / 4,
-          getDrawingHorizontalLine: (value) {
-            return fl_chart.FlLine(
-              color: widget.isDark ? Colors.grey.shade700 : Colors.grey.shade300,
-              strokeWidth: 0.5,
-            );
-          },
-        ),
-        titlesData: fl_chart.FlTitlesData(
-          show: true,
-          rightTitles: fl_chart.AxisTitles(sideTitles: fl_chart.SideTitles(showTitles: false)),
-          topTitles: fl_chart.AxisTitles(sideTitles: fl_chart.SideTitles(showTitles: false)),
-          leftTitles: fl_chart.AxisTitles(
-            sideTitles: fl_chart.SideTitles(
-              showTitles: true,
-              interval: maxSpeed / 4,
-              getTitlesWidget: (value, meta) {
-                return Text(
-                  value.toStringAsFixed(0),
-                  style: GoogleFonts.inter(
-                    fontSize: 10,
-                    color: widget.secondaryTextColor,
-                  ),
-                );
-              },
-            ),
-          ),
-          bottomTitles: fl_chart.AxisTitles(
-            sideTitles: fl_chart.SideTitles(
-              showTitles: true,
-              interval: (speeds.length / 4).ceilToDouble(),
-              getTitlesWidget: (value, meta) {
-                return Text(
-                  value.toInt().toString(),
-                  style: GoogleFonts.inter(
-                    fontSize: 10,
-                    color: widget.secondaryTextColor,
-                  ),
-                );
-              },
-            ),
-          ),
-        ),
-        borderData: fl_chart.FlBorderData(show: true),
-        lineBarsData: [
-          fl_chart.LineChartBarData(
-            spots: spots,
-            isCurved: true,
-            color: Colors.blueAccent,
-            barWidth: 2,
-            belowBarData: fl_chart.BarAreaData(
-              show: true,
-              color: Colors.blueAccent.withValues(alpha: 0.3),
-            ),
-            dotData: fl_chart.FlDotData(show: false),
-          ),
-        ],
-        minY: 0,
-        maxY: maxSpeed,
-      ),
-    );
-  }
-
-  Widget _buildSpeedVsAverageGraph() {
-    final speeds = widget.trip.speedReadings;
-    final avgSpeed = widget.trip.avgSpeed;
-    final maxSpeed = widget.trip.maxSpeed;
-
-    List<fl_chart.FlSpot> speedSpots = [];
-    List<fl_chart.FlSpot> avgSpots = [];
-
-    for (int i = 0; i < speeds.length; i++) {
-      speedSpots.add(fl_chart.FlSpot(i.toDouble(), speeds[i]));
-      avgSpots.add(fl_chart.FlSpot(i.toDouble(), avgSpeed));
-    }
-
-    return fl_chart.LineChart(
-      fl_chart.LineChartData(
-        gridData: fl_chart.FlGridData(
-          show: true,
-          drawVerticalLine: false,
-          horizontalInterval: maxSpeed / 4,
-          getDrawingHorizontalLine: (value) {
-            return fl_chart.FlLine(
-              color: widget.isDark ? Colors.grey.shade700 : Colors.grey.shade300,
-              strokeWidth: 0.5,
-            );
-          },
-        ),
-        titlesData: fl_chart.FlTitlesData(
-          show: true,
-          rightTitles: fl_chart.AxisTitles(sideTitles: fl_chart.SideTitles(showTitles: false)),
-          topTitles: fl_chart.AxisTitles(sideTitles: fl_chart.SideTitles(showTitles: false)),
-          leftTitles: fl_chart.AxisTitles(
-            sideTitles: fl_chart.SideTitles(
-              showTitles: true,
-              interval: maxSpeed / 4,
-              getTitlesWidget: (value, meta) {
-                return Text(
-                  value.toStringAsFixed(0),
-                  style: GoogleFonts.inter(
-                    fontSize: 10,
-                    color: widget.secondaryTextColor,
-                  ),
-                );
-              },
-            ),
-          ),
-          bottomTitles: fl_chart.AxisTitles(
-            sideTitles: fl_chart.SideTitles(
-              showTitles: true,
-              interval: (speeds.length / 4).ceilToDouble(),
-              getTitlesWidget: (value, meta) {
-                return Text(
-                  value.toInt().toString(),
-                  style: GoogleFonts.inter(
-                    fontSize: 10,
-                    color: widget.secondaryTextColor,
-                  ),
-                );
-              },
-            ),
-          ),
-        ),
-        borderData: fl_chart.FlBorderData(show: true),
-        lineBarsData: [
-          fl_chart.LineChartBarData(
-            spots: speedSpots,
-            isCurved: true,
-            color: Colors.blueAccent,
-            barWidth: 2,
-            belowBarData: fl_chart.BarAreaData(
-              show: true,
-              color: Colors.blueAccent.withValues(alpha: 0.2),
-            ),
-            dotData: fl_chart.FlDotData(show: false),
-          ),
-          fl_chart.LineChartBarData(
-            spots: avgSpots,
-            isCurved: false,
-            color: Colors.orangeAccent,
-            barWidth: 2,
-            dotData: fl_chart.FlDotData(show: false),
-          ),
-        ],
-        minY: 0,
-        maxY: maxSpeed,
-      ),
-    );
-  }
 }
 
