@@ -1,16 +1,14 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/cupertino.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:hive/hive.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
-import 'package:flutter_ringtone_player/flutter_ringtone_player.dart';
+import 'package:audioplayers/audioplayers.dart';
 import 'package:vibration/vibration.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
 import 'trip_model.dart';
 import 'theme_provider.dart';
-import 'tutorial_page.dart';
 
 class SettingsPage extends StatefulWidget {
   const SettingsPage({super.key});
@@ -21,6 +19,7 @@ class SettingsPage extends StatefulWidget {
 
 class _SettingsPageState extends State<SettingsPage> {
   String _appVersion = 'Loading...';
+  final AudioPlayer _audioPlayer = AudioPlayer();
 
   @override
   void initState() {
@@ -51,15 +50,11 @@ class _SettingsPageState extends State<SettingsPage> {
       }
     }
 
-    // Trigger Sound if enabled
     if (themeProvider.enableSoundAlert) {
       try {
-        FlutterRingtonePlayer().playNotification(
-          looping: false,
-          asAlarm: false,
-        );
+        await _audioPlayer.play(AssetSource('audio/over_limit.mp3'));
       } catch (e) {
-        debugPrint('System sound test failed: $e');
+        debugPrint('Custom sound test failed: $e');
       }
     }
   }
@@ -360,40 +355,6 @@ class _SettingsPageState extends State<SettingsPage> {
     }
   }
 
-  void _showThemePicker(
-      BuildContext context, ThemeProvider themeProvider, bool isDark) {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.transparent,
-      builder: (context) => Container(
-        decoration: BoxDecoration(
-          color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-        ),
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Select Theme',
-              style: GoogleFonts.outfit(
-                fontSize: 20,
-                fontWeight: FontWeight.bold,
-                color: isDark ? Colors.white : Colors.black,
-              ),
-            ),
-            const SizedBox(height: 20),
-            _themeOption(
-                context, themeProvider, 'System Default', 'system', isDark),
-            _themeOption(context, themeProvider, 'Light Mode', 'light', isDark),
-            _themeOption(context, themeProvider, 'Dark Mode', 'dark', isDark),
-            const SizedBox(height: 20),
-          ],
-        ),
-      ),
-    );
-  }
 
   void _showAlertPicker(
       BuildContext context, ThemeProvider themeProvider, bool isDark) {
@@ -456,43 +417,4 @@ class _SettingsPageState extends State<SettingsPage> {
     );
   }
 
-  Widget _themeOption(BuildContext context, ThemeProvider provider,
-      String label, String value, bool isDark) {
-    bool isSelected = false;
-    if (value == 'system') isSelected = provider.useSystemTheme;
-    if (value == 'light'){
-      isSelected = !provider.useSystemTheme && !provider.isDarkMode;
-    }
-    if (value == 'dark'){
-      isSelected = !provider.useSystemTheme && provider.isDarkMode;
-      }
-
-    return ListTile(
-      contentPadding: EdgeInsets.zero,
-      title: Text(
-        label,
-        style: GoogleFonts.inter(
-          color: isSelected
-              ? Colors.blueAccent
-              : (isDark ? Colors.white : Colors.black),
-          fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
-        ),
-      ),
-      trailing: isSelected
-          ? const Icon(Icons.check_circle, color: Colors.blueAccent)
-          : null,
-      onTap: () {
-        if (value == 'system') {
-          if (!provider.useSystemTheme) provider.toggleUseSystemTheme();
-        } else if (value == 'light') {
-          if (provider.useSystemTheme) provider.toggleUseSystemTheme();
-          provider.setTheme('light');
-        } else if (value == 'dark') {
-          if (provider.useSystemTheme) provider.toggleUseSystemTheme();
-          provider.setTheme('dark');
-        }
-        Navigator.pop(context);
-      },
-    );
-  }
 }

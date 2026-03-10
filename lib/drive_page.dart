@@ -8,7 +8,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:hive/hive.dart';
 import 'package:provider/provider.dart';
 import 'package:vibration/vibration.dart';
-import 'package:flutter_ringtone_player/flutter_ringtone_player.dart';
+import 'package:audioplayers/audioplayers.dart';
 
 import 'package:tutorial_coach_mark/tutorial_coach_mark.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -36,6 +36,7 @@ class _DrivePageState extends State<DrivePage> {
   StreamSubscription<Position>? _positionStream;
   Timer? _tripTimer;
   Timer? _alertTimer;
+  final AudioPlayer _audioPlayer = AudioPlayer();
 
   double _speed = 0;
   double _distance = 0;
@@ -329,6 +330,8 @@ class _DrivePageState extends State<DrivePage> {
       TargetFocus(
         identify: "start",
         keyTarget: _startBtnKey,
+        shape: ShapeLightFocus.RRect,
+        radius: 16,
         contents: [
           TargetContent(
             align: ContentAlign.top,
@@ -337,6 +340,7 @@ class _DrivePageState extends State<DrivePage> {
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  const SizedBox(height: 20),
                    Text(
                     "Begin Your Journey",
                     style: GoogleFonts.orbitron(
@@ -359,6 +363,7 @@ class _DrivePageState extends State<DrivePage> {
                     ),
                     child: const Text("FINISH"),
                   ),
+                  const SizedBox(height: 40),
                 ],
               );
             },
@@ -514,7 +519,7 @@ class _DrivePageState extends State<DrivePage> {
     _alertTimer?.cancel();
     _alertTimer = null;
     Vibration.cancel();
-    FlutterRingtonePlayer().stop();
+    _audioPlayer.stop();
   }
 
   Future<void> _triggerAlertsOnce() async {
@@ -529,12 +534,9 @@ class _DrivePageState extends State<DrivePage> {
 
     if (provider.enableSoundAlert) {
       try {
-        FlutterRingtonePlayer().playNotification(
-          looping: false,
-          asAlarm: false,
-        );
+        await _audioPlayer.play(AssetSource('audio/over_limit.mp3'));
       } catch (e) {
-        debugPrint('System sound failed: $e');
+        debugPrint('Custom sound failed: $e');
       }
     }
   }

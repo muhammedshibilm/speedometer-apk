@@ -173,10 +173,10 @@ class _TutorialPageState extends State<TutorialPage> {
             padding: const EdgeInsets.all(30),
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              color: step.color.withOpacity(0.1),
+              color: step.color.withValues(alpha: 0.1),
               boxShadow: [
                 BoxShadow(
-                  color: step.color.withOpacity(0.2),
+                  color: step.color.withValues(alpha: 0.2),
                   blurRadius: 40,
                   spreadRadius: 10,
                 ),
