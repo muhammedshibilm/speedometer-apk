@@ -82,7 +82,7 @@ class _DrivePageState extends State<DrivePage> {
   @override
   void initState() {
     super.initState();
-    _speedFilter = SimpleKalmanFilter(decisionNoise: 0.1, measurementNoise: 3.0);
+    _speedFilter = SimpleKalmanFilter(decisionNoise: 2.0, measurementNoise: 1.0);
     
     Future.delayed(const Duration(milliseconds: 500), () {
       _checkAndShowTutorial();
@@ -404,7 +404,7 @@ class _DrivePageState extends State<DrivePage> {
       _sessionAvgSpeed = 0;
       _allLatitudes.clear();
       _allLongitudes.clear();
-      _speedFilter = SimpleKalmanFilter(decisionNoise: 0.1, measurementNoise: 3, estimateError: 1); // Reset filter
+      _speedFilter = SimpleKalmanFilter(decisionNoise: 2.0, measurementNoise: 1.0, estimateError: 1); // Reset filter
       _lastPosition = null;
     });
 
