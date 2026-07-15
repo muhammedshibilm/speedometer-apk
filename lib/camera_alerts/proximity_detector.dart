@@ -1,5 +1,4 @@
 import 'dart:math';
-import 'package:flutter/foundation.dart';
 import 'camera_model.dart';
 
 /// Result of a proximity check – returned by [ProximityDetector.findNearest].
@@ -26,25 +25,19 @@ class ProximityResult {
   }
 }
 
-/// Proximity detection math: haversine distance + ahead-of-travel bearing filter.
-///
-/// All methods are pure functions – easy to unit-test without mocking.
+/// Proximity detection: haversine distance + optional ahead-of-travel filter.
 class ProximityDetector {
-  /// Minimum dot-product angle considered "ahead":
-  /// bearingDiffDegrees must be within [_halfFovDeg] of the heading.
-  static const double _halfFovDeg = 60.0;
+  /// Field-of-view half-angle: camera must be within this of the heading.
+  static const double _halfFovDeg = 70.0;
 
-  /// Finds the nearest camera ahead of the user, or null if none qualifies.
+  /// Finds the nearest camera ahead of the user (or all-around if stationary).
   ///
-  /// [userLat],[userLon] – current GPS position.
-  /// [headingDeg] – GPS course/bearing in degrees (0=N, 90=E …).
-  /// [alertRadiusMeters] – maximum search distance.
-  /// [criticalRadiusMeters] – distance below which [ProximityResult.isCritical] is true.
-  /// [cameras] – list to search (pre-filtered to a reasonable bbox by [CameraRepository]).
+  /// [headingDeg] – pass null when the user is stationary (speed < threshold)
+  ///   to disable the directional filter and alert regardless of heading.
   static ProximityResult? findNearest({
     required double userLat,
     required double userLon,
-    required double headingDeg,
+    required double? headingDeg, // nullable = no direction filter
     required List<CameraModel> cameras,
     double alertRadiusMeters = 800,
     double criticalRadiusMeters = 200,
@@ -55,8 +48,11 @@ class ProximityDetector {
       final dist = haversineMeters(userLat, userLon, camera.lat, camera.lon);
       if (dist > alertRadiusMeters) continue;
 
-      final bearing = bearingDeg(userLat, userLon, camera.lat, camera.lon);
-      if (!isAhead(headingDeg, bearing, halfFovDeg: _halfFovDeg)) continue;
+      // Only apply directional filter when heading is known (user is moving)
+      if (headingDeg != null) {
+        final bearing = bearingDeg(userLat, userLon, camera.lat, camera.lon);
+        if (!isAhead(headingDeg, bearing, halfFovDeg: _halfFovDeg)) continue;
+      }
 
       if (best == null || dist < best.distanceMeters) {
         best = ProximityResult(
@@ -70,7 +66,7 @@ class ProximityDetector {
   }
 
   // ---------------------------------------------------------------------------
-  // Pure math helpers – exposed for unit testing
+  // Pure math helpers
   // ---------------------------------------------------------------------------
 
   /// Haversine great-circle distance in metres.
@@ -99,7 +95,7 @@ class ProximityDetector {
   static bool isAhead(double heading, double cameraBearing,
       {double halfFovDeg = _halfFovDeg}) {
     double diff = (cameraBearing - heading + 360) % 360;
-    if (diff > 180) diff = 360 - diff; // normalise to [0,180]
+    if (diff > 180) diff = 360 - diff; // normalise to [0, 180]
     return diff <= halfFovDeg;
   }
 

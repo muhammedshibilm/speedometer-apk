@@ -14,15 +14,20 @@ import 'proximity_detector.dart';
 ///  - exposes [nearestCamera] for the in-app banner
 ///  - fires local notifications when a critical zone is entered
 class CameraAlertProvider extends ChangeNotifier {
-  // ── Settings (can be overridden from ThemeProvider / settings UI) ─────────
+  // ── Settings ─────────────────────────────────────────────────────────────
   double alertRadiusMeters = 800;
   double criticalRadiusMeters = 200;
   bool alertSoundEnabled = true;
   bool alertVibrationEnabled = true;
+
+  // Per-type toggles (all on by default)
   bool speedCameraEnabled = true;
   bool avgSpeedCameraEnabled = true;
+  bool redLightCameraEnabled = true;
+  bool policeCameraEnabled = true;
+  bool anprEnabled = true;
 
-  // ── State ─────────────────────────────────────────────────────────────────
+  // ── State ──────────────────────────────────────────────────────────────────
   ProximityResult? nearestCamera;
   bool get isAlertActive => nearestCamera != null;
 
@@ -38,7 +43,7 @@ class CameraAlertProvider extends ChangeNotifier {
   String _syncStatus = 'Never synced';
   String get syncStatus => _syncStatus;
 
-  // ── Private ───────────────────────────────────────────────────────────────
+  // ── Private ────────────────────────────────────────────────────────────────
   final CameraRepository _repo = CameraRepository();
   final FlutterLocalNotificationsPlugin _notifPlugin =
       FlutterLocalNotificationsPlugin();
@@ -49,7 +54,7 @@ class CameraAlertProvider extends ChangeNotifier {
 
   Timer? _syncTimer;
 
-  // ── Init ──────────────────────────────────────────────────────────────────
+  // ── Init ───────────────────────────────────────────────────────────────────
 
   Future<void> init() async {
     await _repo.init();
@@ -60,13 +65,6 @@ class CameraAlertProvider extends ChangeNotifier {
         : 'Last synced: ${_formattedDate(_lastSyncTime!)}';
 
     await _initNotifications();
-
-    // Periodic weekly sync timer
-    _syncTimer = Timer.periodic(const Duration(days: 7), (_) async {
-      // We don't know position here; caller should call syncForLocation()
-      debugPrint('[CameraAlertProvider] Weekly sync timer fired');
-    });
-
     notifyListeners();
   }
 
@@ -76,7 +74,7 @@ class CameraAlertProvider extends ChangeNotifier {
     super.dispose();
   }
 
-  // ── Notification setup ────────────────────────────────────────────────────
+  // ── Notification setup ─────────────────────────────────────────────────────
 
   Future<void> _initNotifications() async {
     const android = AndroidInitializationSettings('@mipmap/ic_launcher');
@@ -86,19 +84,22 @@ class CameraAlertProvider extends ChangeNotifier {
     );
   }
 
-  // ── Sync ──────────────────────────────────────────────────────────────────
+  // ── Sync ───────────────────────────────────────────────────────────────────
 
   /// Triggers an Overpass sync for the user's current location.
-  /// Safe to call from the drive screen whenever tracking starts.
+  ///
+  /// By default skips if last sync was < 6 days ago and returned cameras.
+  /// Pass [force] = true to always re-fetch (e.g. from settings).
   Future<void> syncForLocation(double lat, double lon,
       {bool force = false}) async {
     if (_isSyncing) return;
 
-    // Skip if last sync was < 6 days ago (unless forced)
+    // Skip if last sync was recent AND we already have cameras stored
     if (!force && _lastSyncTime != null) {
       final age = DateTime.now().difference(_lastSyncTime!);
-      if (age.inDays < 6) {
-        debugPrint('[CameraAlertProvider] Sync skipped – data fresh');
+      if (age.inDays < 6 && _cachedCameraCount > 0) {
+        debugPrint('[CameraAlertProvider] Sync skipped – data fresh '
+            '($_cachedCameraCount cameras)');
         return;
       }
     }
@@ -115,15 +116,17 @@ class CameraAlertProvider extends ChangeNotifier {
           await _repo.upsertAll(cameras);
           _cachedCameraCount = _repo.count;
           _lastSyncTime = DateTime.now();
-          _syncStatus = 'Last synced: ${_formattedDate(_lastSyncTime!)}';
+          _syncStatus =
+              'Synced: $_cachedCameraCount cameras (${_formattedDate(_lastSyncTime!)})';
         } else {
-          _syncStatus = 'Sync done – no cameras in area';
+          _syncStatus = 'Sync done – no cameras found in this area';
+          _lastSyncTime = DateTime.now(); // mark as synced so we don't retry immediately
         }
       } else {
-        _syncStatus = 'Sync failed – using cached data';
+        _syncStatus = 'Sync failed – check connection. Using cached data.';
       }
     } catch (e) {
-      _syncStatus = 'Sync failed – using cached data';
+      _syncStatus = 'Sync error – using cached data';
       debugPrint('[CameraAlertProvider] Sync error: $e');
     }
 
@@ -131,32 +134,46 @@ class CameraAlertProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  // ── GPS position update hook ──────────────────────────────────────────────
+  // ── GPS position update hook ───────────────────────────────────────────────
 
   /// Call this from [DrivePage._onPosition] on every GPS fix.
   void onPositionUpdate(Position position) {
     if (!isBoxOpen) return;
-    final heading = position.heading; // degrees, 0=N
 
-    // Filter camera types per settings
+    // Build the list of allowed camera types from toggle settings
     final allowed = <String>[];
-    if (speedCameraEnabled) allowed.add('speed_camera');
-    if (avgSpeedCameraEnabled) allowed.add('average_speed');
+    if (speedCameraEnabled) allowed.add(CameraType.speedCamera);
+    if (avgSpeedCameraEnabled) allowed.add(CameraType.averageSpeed);
+    if (redLightCameraEnabled) allowed.add(CameraType.redLight);
+    if (policeCameraEnabled) allowed.add(CameraType.police);
+    if (anprEnabled) allowed.add(CameraType.anpr);
 
-    // Fetch nearby cameras from Hive (small radius for perf)
+    if (allowed.isEmpty) {
+      if (nearestCamera != null) {
+        nearestCamera = null;
+        notifyListeners();
+      }
+      return;
+    }
+
     final candidates = _repo
         .getCamerasNear(
           lat: position.latitude,
           lon: position.longitude,
-          radiusMeters: alertRadiusMeters + 200, // small buffer
+          radiusMeters: alertRadiusMeters + 300,
         )
         .where((c) => allowed.contains(c.type))
         .toList();
 
+    // Only apply heading filter when actually moving (speed > 3 km/h)
+    // to avoid false-negatives when stationary at 0 heading.
+    final double? headingOrNull =
+        position.speed > 0.8 ? position.heading : null;
+
     final result = ProximityDetector.findNearest(
       userLat: position.latitude,
       userLon: position.longitude,
-      headingDeg: heading,
+      headingDeg: headingOrNull,
       cameras: candidates,
       alertRadiusMeters: alertRadiusMeters,
       criticalRadiusMeters: criticalRadiusMeters,
@@ -165,12 +182,12 @@ class CameraAlertProvider extends ChangeNotifier {
     final previous = nearestCamera;
     nearestCamera = result;
 
-    // Fire notification only when entering critical zone + debounce
+    // Fire notification only when entering critical zone
     if (result != null && result.isCritical) {
       _maybeSendNotification(result);
     }
 
-    // Only notify UI when state meaningfully changes
+    // Only rebuild UI when state meaningfully changes
     if (result?.camera.osmId != previous?.camera.osmId ||
         result?.isCritical != previous?.isCritical) {
       notifyListeners();
@@ -187,21 +204,23 @@ class CameraAlertProvider extends ChangeNotifier {
     _lastAlertedCameraId = result.camera.osmId;
     _lastAlertTime = now;
 
-    final typeLabel =
-        result.camera.type == 'average_speed' ? 'Average Speed' : 'Speed';
+    final label = result.camera.typeLabel;
     final speedLabel = result.camera.maxspeed != null
         ? ' (${result.camera.maxspeed} km/h limit)'
         : '';
 
+    // Choose notification icon/emoji per type
+    final emoji = _emojiFor(result.camera.type);
+
     _notifPlugin.show(
-      1001, // fixed id – replaces previous camera alert
-      '🚨 $typeLabel Camera Ahead',
+      1001, // fixed id – replaces previous alert
+      '$emoji $label Ahead',
       '${result.distanceText} away$speedLabel',
       const NotificationDetails(
         android: AndroidNotificationDetails(
           'camera_alerts',
           'Camera Alerts',
-          channelDescription: 'Speed camera proximity warnings',
+          channelDescription: 'Speed & traffic camera proximity warnings',
           importance: Importance.high,
           priority: Priority.high,
           playSound: true,
@@ -211,7 +230,21 @@ class CameraAlertProvider extends ChangeNotifier {
     );
   }
 
-  // ── Helpers ───────────────────────────────────────────────────────────────
+  String _emojiFor(String type) {
+    switch (type) {
+      case CameraType.police:
+      case CameraType.anpr:
+        return '🚔';
+      case CameraType.redLight:
+        return '🚦';
+      case CameraType.averageSpeed:
+        return '📷';
+      default:
+        return '🚨';
+    }
+  }
+
+  // ── Helpers ────────────────────────────────────────────────────────────────
 
   bool get isBoxOpen => Hive.isBoxOpen(CameraRepository.boxName);
 

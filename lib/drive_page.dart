@@ -15,6 +15,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'trip_model.dart';
 import 'theme_provider.dart';
 import 'camera_alerts/camera_alert_provider.dart';
+import 'camera_alerts/camera_model.dart';
+import 'camera_alerts/overpass_service.dart';
 import 'camera_alerts/proximity_detector.dart';
 import 'driving_behavior/behavior_provider.dart';
 import 'driving_behavior/behavior_event_model.dart';
@@ -1489,65 +1491,94 @@ class _CameraAlertBanner extends StatelessWidget {
     required this.isDark,
   });
 
+  /// Returns an icon appropriate for the camera type.
+  IconData _iconFor(String type) {
+    switch (type) {
+      case CameraType.police:
+      case CameraType.anpr:
+        return Icons.local_police_outlined;
+      case CameraType.redLight:
+        return Icons.traffic_outlined;
+      case CameraType.averageSpeed:
+        return Icons.speed_outlined;
+      default:
+        return Icons.camera_alt_outlined;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    final typeStr = result.camera.type == 'average_speed' ? 'AVERAGE SPEED' : 'SPEED';
-    final limit = result.camera.maxspeed != null ? ' - ${result.camera.maxspeed} KM/H' : '';
+    final label = result.camera.typeLabel.toUpperCase();
+    final limit = result.camera.maxspeed != null
+        ? ' · ${result.camera.maxspeed} KM/H'
+        : '';
+    final alertColor =
+        result.isCritical ? Colors.redAccent : Colors.orangeAccent;
 
-    return Container(
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 300),
       width: double.infinity,
       margin: const EdgeInsets.only(bottom: 16),
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(
-        color: result.isCritical
-            ? Colors.redAccent.withValues(alpha: isDark ? 0.2 : 0.1)
-            : Colors.orangeAccent.withValues(alpha: isDark ? 0.2 : 0.1),
-        border: Border.all(
-          color: result.isCritical ? Colors.redAccent : Colors.orangeAccent,
-          width: 2,
-        ),
+        color: alertColor.withValues(alpha: isDark ? 0.18 : 0.1),
+        border: Border.all(color: alertColor, width: 2),
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           if (result.isCritical)
             BoxShadow(
-              color: Colors.redAccent.withValues(alpha: 0.3),
-              blurRadius: 12,
-              spreadRadius: 2,
+              color: Colors.redAccent.withValues(alpha: 0.35),
+              blurRadius: 16,
+              spreadRadius: 3,
             ),
         ],
       ),
       child: Row(
         children: [
-          Icon(
-            Icons.camera_alt_outlined,
-            color: result.isCritical ? Colors.redAccent : Colors.orangeAccent,
-            size: 28,
-          ),
+          Icon(_iconFor(result.camera.type), color: alertColor, size: 30),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  '$typeStr CAMERA AHEAD$limit',
+                  '$label AHEAD$limit',
                   style: GoogleFonts.orbitron(
                     color: isDark ? Colors.white : Colors.black87,
                     fontWeight: FontWeight.bold,
-                    fontSize: 14,
-                    letterSpacing: 1,
+                    fontSize: 13,
+                    letterSpacing: 0.8,
                   ),
                 ),
+                const SizedBox(height: 2),
                 Text(
                   result.distanceText,
                   style: GoogleFonts.inter(
-                    color: result.isCritical ? Colors.redAccent : Colors.orangeAccent,
-                    fontWeight: FontWeight.w700,
-                    fontSize: 18,
+                    color: alertColor,
+                    fontWeight: FontWeight.w800,
+                    fontSize: 20,
                   ),
                 ),
               ],
             ),
           ),
+          // Pulse dot
+          if (result.isCritical)
+            Container(
+              width: 10,
+              height: 10,
+              decoration: BoxDecoration(
+                color: Colors.redAccent,
+                shape: BoxShape.circle,
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.redAccent.withValues(alpha: 0.7),
+                    blurRadius: 8,
+                    spreadRadius: 2,
+                  )
+                ],
+              ),
+            ),
         ],
       ),
     );

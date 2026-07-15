@@ -2,7 +2,7 @@ import 'package:hive/hive.dart';
 
 part 'camera_model.g.dart';
 
-/// OSM speed/traffic camera node stored locally in Hive.
+/// OSM speed/traffic/police camera node stored locally in Hive.
 @HiveType(typeId: 1)
 class CameraModel extends HiveObject {
   /// OSM node id – used as dedup key.
@@ -15,7 +15,7 @@ class CameraModel extends HiveObject {
   @HiveField(2)
   double lon;
 
-  /// 'speed_camera' or 'average_speed'
+  /// One of: 'speed_camera', 'average_speed', 'red_light', 'police', 'anpr'
   @HiveField(3)
   String type;
 
@@ -38,6 +38,23 @@ class CameraModel extends HiveObject {
     this.source = 'overpass',
     required this.lastUpdated,
   });
+
+  /// Human-readable label for UI display.
+  String get typeLabel {
+    switch (type) {
+      case 'average_speed':
+        return 'Average Speed Camera';
+      case 'red_light':
+        return 'Red-Light Camera';
+      case 'police':
+        return 'Police Camera';
+      case 'anpr':
+        return 'ANPR / Police Camera';
+      case 'speed_camera':
+      default:
+        return 'Speed Camera';
+    }
+  }
 
   @override
   String toString() =>

@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'package:flutter/foundation.dart';
 import 'package:hive/hive.dart';
 import 'camera_model.dart';
@@ -38,7 +39,7 @@ class CameraRepository {
     final box = _safeBox;
     if (box == null) return [];
     return box.values.where((c) {
-      final d = _haversineMeters(lat, lon, c.lat, c.lon);
+      final d = haversineMeters(lat, lon, c.lat, c.lon);
       return d <= radiusMeters;
     }).toList();
   }
@@ -69,6 +70,11 @@ class CameraRepository {
     return cameras.length;
   }
 
+  /// Clears all stored cameras (useful to force a fresh sync).
+  Future<void> clearAll() async {
+    await _safeBox?.clear();
+  }
+
   /// Total camera count stored locally.
   int get count => _safeBox?.length ?? 0;
 
@@ -76,47 +82,23 @@ class CameraRepository {
   DateTime? get lastSyncTime {
     final box = _safeBox;
     if (box == null || box.isEmpty) return null;
-    // Find the max lastUpdated
     return box.values
         .map((c) => c.lastUpdated)
         .reduce((a, b) => a.isAfter(b) ? a : b);
   }
 
-  /// Simple haversine distance in metres.
-  static double _haversineMeters(
+  /// Accurate haversine distance in metres using dart:math.
+  static double haversineMeters(
       double lat1, double lon1, double lat2, double lon2) {
     const r = 6371000.0;
-    final dLat = _toRad(lat2 - lat1);
-    final dLon = _toRad(lon2 - lon1);
-    final a = _sin2(dLat / 2) +
-        _cos(_toRad(lat1)) * _cos(_toRad(lat2)) * _sin2(dLon / 2);
-    final c = 2 * _asin(_sqrt(a));
-    return r * c;
+    final dLat = _rad(lat2 - lat1);
+    final dLon = _rad(lon2 - lon1);
+    final a = math.pow(math.sin(dLat / 2), 2) +
+        math.cos(_rad(lat1)) *
+            math.cos(_rad(lat2)) *
+            math.pow(math.sin(dLon / 2), 2);
+    return 2 * r * math.asin(math.sqrt(a.clamp(0.0, 1.0)));
   }
 
-  static double _toRad(double d) => d * 3.141592653589793 / 180;
-  static double _sin2(double x) {
-    final s = _sin(x);
-    return s * s;
-  }
-
-  static double _sin(double x) {
-    // dart:math is not imported to keep this file dependency-free;
-    // use inline approximation via dart's built-in
-    return x - (x * x * x) / 6 + (x * x * x * x * x) / 120;
-  }
-
-  static double _cos(double x) =>
-      1 - (x * x) / 2 + (x * x * x * x) / 24;
-
-  static double _asin(double x) => x + (x * x * x) / 6;
-
-  static double _sqrt(double x) {
-    if (x <= 0) return 0;
-    double r = x;
-    for (int i = 0; i < 20; i++) {
-      r = (r + x / r) / 2;
-    }
-    return r;
-  }
+  static double _rad(double deg) => deg * math.pi / 180;
 }
