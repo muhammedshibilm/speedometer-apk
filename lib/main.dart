@@ -6,11 +6,16 @@ import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:provider/provider.dart';
 import 'package:speedy/home_shell.dart';
 
-
 import 'trip_model.dart';
 import 'theme_provider.dart';
 import 'tutorial_page.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
+// New feature imports
+import 'camera_alerts/camera_model.dart';
+import 'camera_alerts/camera_alert_provider.dart';
+import 'driving_behavior/behavior_event_model.dart';
+import 'driving_behavior/behavior_provider.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -18,10 +23,15 @@ void main() async {
   // ads
   await MobileAds.instance.initialize();
 
-  // Init Hive
+  // Init Hive – register ALL adapters before opening boxes
   await Hive.initFlutter();
   Hive.registerAdapter(TripModelAdapter());
+  Hive.registerAdapter(CameraModelAdapter());
+  Hive.registerAdapter(BehaviorEventModelAdapter());
+
   await Hive.openBox<TripModel>('trips');
+  await Hive.openBox<BehaviorEventModel>('behavior_events');
+  // cameras box is opened lazily by CameraAlertProvider.init()
 
   // Status bar style
   SystemChrome.setSystemUIOverlayStyle(
@@ -33,8 +43,12 @@ void main() async {
   );
 
   runApp(
-    ChangeNotifierProvider(
-      create: (_) => ThemeProvider(),
+    MultiProvider(
+      providers: [
+        ChangeNotifierProvider(create: (_) => ThemeProvider()),
+        ChangeNotifierProvider(create: (_) => CameraAlertProvider()),
+        ChangeNotifierProvider(create: (_) => BehaviorProvider()),
+      ],
       child: const MyApp(),
     ),
   );
@@ -58,6 +72,11 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
     WidgetsBinding.instance.addObserver(this);
     _themeProvider = Provider.of<ThemeProvider>(context, listen: false);
     _checkFirstTime();
+
+    // Initialise camera alert provider (opens Hive box, sets up sync timer)
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      Provider.of<CameraAlertProvider>(context, listen: false).init();
+    });
   }
 
   Future<void> _checkFirstTime() async {
@@ -124,9 +143,11 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
         useMaterial3: false,
       ),
       themeMode: themeProvider.themeMode,
-      home: _isLoading 
+      home: _isLoading
           ? const Scaffold(body: Center(child: CircularProgressIndicator()))
-          : (_isFirstTime ? const TutorialPage(isOnboarding: true) : const HomeShell()),
+          : (_isFirstTime
+              ? const TutorialPage(isOnboarding: true)
+              : const HomeShell()),
     );
   }
 }

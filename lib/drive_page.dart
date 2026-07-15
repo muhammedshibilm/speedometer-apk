@@ -14,6 +14,11 @@ import 'package:tutorial_coach_mark/tutorial_coach_mark.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'trip_model.dart';
 import 'theme_provider.dart';
+import 'camera_alerts/camera_alert_provider.dart';
+import 'camera_alerts/proximity_detector.dart';
+import 'driving_behavior/behavior_provider.dart';
+import 'driving_behavior/behavior_event_model.dart';
+import 'driving_behavior/trip_score.dart';
 
 class DrivePage extends StatefulWidget {
   const DrivePage({super.key});
@@ -37,6 +42,9 @@ class _DrivePageState extends State<DrivePage> {
   Timer? _tripTimer;
   Timer? _alertTimer;
   final AudioPlayer _audioPlayer = AudioPlayer();
+
+  // Behavior summary from last completed trip
+  TripBehaviorSummary? _lastBehaviorSummary;
 
   double _speed = 0;
   double _distance = 0;
@@ -413,6 +421,11 @@ class _DrivePageState extends State<DrivePage> {
         distanceFilter: 0,
       ),
     ).listen(_onPosition);
+
+    // ── New: start behavior tracker & trigger camera sync ─────────────────
+    final behaviorProvider = Provider.of<BehaviorProvider>(context, listen: false);
+    final tripKey = DateTime.now().millisecondsSinceEpoch; // temp key
+    behaviorProvider.startTrip(tripKey);
   }
 
   void _stopTrackingOnly() {
@@ -422,6 +435,10 @@ class _DrivePageState extends State<DrivePage> {
     _positionStream = null;
     _tripTimer = null;
     setState(() => _tracking = false);
+
+    // Collect behavior summary (stored temporarily for _saveTrip)
+    final behaviorProvider = Provider.of<BehaviorProvider>(context, listen: false);
+    _lastBehaviorSummary = behaviorProvider.stopTrip();
   }
 
   // ---------------- GPS CORE ----------------
@@ -484,6 +501,23 @@ class _DrivePageState extends State<DrivePage> {
   
     _lastPosition = p;
     _checkSpeedLimit();
+
+    // ── Feed camera alerts ────────────────────────────────────────────────
+    final cameraProvider = Provider.of<CameraAlertProvider>(context, listen: false);
+    cameraProvider.onPositionUpdate(p);
+
+    // ── Feed behavior tracker ─────────────────────────────────────────────
+    final behaviorProvider = Provider.of<BehaviorProvider>(context, listen: false);
+    final nearestCamera = cameraProvider.nearestCamera;
+    behaviorProvider.onSpeedUpdate(
+      rawSpeedKmh,
+      speedLimitKmh: nearestCamera?.camera.maxspeed?.toDouble(),
+    );
+
+    // ── Trigger camera sync on first good fix ─────────────────────────────
+    if (_allLatitudes.length == 1) {
+      cameraProvider.syncForLocation(p.latitude, p.longitude);
+    }
   }
 
   void _checkSpeedLimit() {
@@ -553,6 +587,8 @@ class _DrivePageState extends State<DrivePage> {
 
     final maxSpeed = _allSpeeds.isEmpty ? 0 : _allSpeeds.reduce(max);
 
+    final summary = _lastBehaviorSummary;
+
     final trip = TripModel(
       name: name,
       startTime: DateTime.now().subtract(_tripDuration),
@@ -563,9 +599,31 @@ class _DrivePageState extends State<DrivePage> {
       speedReadings: List<double>.from(_allSpeeds),
       latitudes: List<double>.from(_allLatitudes),
       longitudes: List<double>.from(_allLongitudes),
+      // Behavior fields
+      harshBrakeCount: summary?.harshBrakeCount ?? 0,
+      harshAccelCount: summary?.harshAccelCount ?? 0,
+      sharpCornerCount: summary?.sharpCornerCount ?? 0,
+      timeOverLimitPct: summary?.timeOverLimitPct ?? 0.0,
+      driveScore: summary?.driveScore ?? 100,
     );
 
-    await Hive.box<TripModel>('trips').add(trip);
+    final box = Hive.box<TripModel>('trips');
+    await box.add(trip);
+
+    // Persist behavior events linked to the new trip key
+    if (summary != null && summary.events.isNotEmpty) {
+      final eventBox = Hive.box<BehaviorEventModel>('behavior_events');
+      final newKey = box.keys.last as int;
+      for (final ev in summary.events) {
+        await eventBox.add(BehaviorEventModel(
+          tripKey: newKey,
+          eventType: ev.eventType,
+          timestamp: ev.timestamp,
+          severity: ev.severity,
+        ));
+      }
+    }
+    _lastBehaviorSummary = null;
   }
 
   // ---------------- UI HELPERS ----------------
@@ -618,6 +676,10 @@ class _DrivePageState extends State<DrivePage> {
     final limit = themeProvider.speedLimit;
     final accentColor = _getSpeedColor(_speed, limit);
 
+    // Camera alert provider
+    final cameraProvider = Provider.of<CameraAlertProvider>(context);
+    final behaviorProvider = Provider.of<BehaviorProvider>(context);
+
     return Scaffold(
       backgroundColor: isDark ? Colors.black : Colors.white,
       body: SafeArea(
@@ -631,6 +693,14 @@ class _DrivePageState extends State<DrivePage> {
                     padding: const EdgeInsets.all(20.0),
                     child: Column(
                       children: [
+
+              // ── CAMERA ALERT BANNER ───────────────────────────────────
+              if (cameraProvider.isAlertActive)
+                _CameraAlertBanner(
+                  result: cameraProvider.nearestCamera!,
+                  isDark: isDark,
+                ),
+
               // TOP BAR: SIGNAL & SPEED LIMIT
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -864,7 +934,19 @@ class _DrivePageState extends State<DrivePage> {
               
               const SizedBox(height: 20),
 
+              // ── BEHAVIOR LIVE COUNTERS ────────────────────────────────────
+              if (_tracking)
+                _BehaviorLiveRow(
+                  brakes: behaviorProvider.harshBrakeCount,
+                  accels: behaviorProvider.harshAccelCount,
+                  corners: behaviorProvider.sharpCornerCount,
+                  isDark: isDark,
+                ),
+
+              if (_tracking) const SizedBox(height: 12),
+
               // START/END TRIP BUTTON
+
               ElevatedButton(
                 style: ElevatedButton.styleFrom(
                   backgroundColor: _tracking ? Colors.redAccent : Colors.greenAccent.shade700,
@@ -1395,6 +1477,164 @@ class _DrivePageState extends State<DrivePage> {
     );
   }
 }
+
+// ---------------- CAMERA ALERT BANNER ----------------
+
+class _CameraAlertBanner extends StatelessWidget {
+  final ProximityResult result;
+  final bool isDark;
+
+  const _CameraAlertBanner({
+    required this.result,
+    required this.isDark,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final typeStr = result.camera.type == 'average_speed' ? 'AVERAGE SPEED' : 'SPEED';
+    final limit = result.camera.maxspeed != null ? ' - ${result.camera.maxspeed} KM/H' : '';
+
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        color: result.isCritical
+            ? Colors.redAccent.withValues(alpha: isDark ? 0.2 : 0.1)
+            : Colors.orangeAccent.withValues(alpha: isDark ? 0.2 : 0.1),
+        border: Border.all(
+          color: result.isCritical ? Colors.redAccent : Colors.orangeAccent,
+          width: 2,
+        ),
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          if (result.isCritical)
+            BoxShadow(
+              color: Colors.redAccent.withValues(alpha: 0.3),
+              blurRadius: 12,
+              spreadRadius: 2,
+            ),
+        ],
+      ),
+      child: Row(
+        children: [
+          Icon(
+            Icons.camera_alt_outlined,
+            color: result.isCritical ? Colors.redAccent : Colors.orangeAccent,
+            size: 28,
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '$typeStr CAMERA AHEAD$limit',
+                  style: GoogleFonts.orbitron(
+                    color: isDark ? Colors.white : Colors.black87,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 14,
+                    letterSpacing: 1,
+                  ),
+                ),
+                Text(
+                  result.distanceText,
+                  style: GoogleFonts.inter(
+                    color: result.isCritical ? Colors.redAccent : Colors.orangeAccent,
+                    fontWeight: FontWeight.w700,
+                    fontSize: 18,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ---------------- BEHAVIOR LIVE ROW ----------------
+
+class _BehaviorLiveRow extends StatelessWidget {
+  final int brakes;
+  final int accels;
+  final int corners;
+  final bool isDark;
+
+  const _BehaviorLiveRow({
+    required this.brakes,
+    required this.accels,
+    required this.corners,
+    required this.isDark,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: isDark
+              ? [
+                  Colors.white.withValues(alpha: 0.1),
+                  Colors.white.withValues(alpha: 0.05)
+                ]
+              : [
+                  Colors.black.withValues(alpha: 0.05),
+                  Colors.black.withValues(alpha: 0.02)
+                ],
+        ),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: isDark
+              ? Colors.white.withValues(alpha: 0.1)
+              : Colors.black.withValues(alpha: 0.05),
+        ),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+        children: [
+          _counter(Icons.speed, 'Accel', accels),
+          _counter(Icons.warning_amber_rounded, 'Brake', brakes),
+          _counter(Icons.turn_right_rounded, 'Corner', corners),
+        ],
+      ),
+    );
+  }
+
+  Widget _counter(IconData icon, String label, int count) {
+    final hasEvents = count > 0;
+    final color = hasEvents ? Colors.redAccent : (isDark ? Colors.white54 : Colors.black54);
+
+    return Column(
+      children: [
+        Icon(icon, color: color, size: 24),
+        const SizedBox(height: 4),
+        Text(
+          hasEvents ? '$count' : '0',
+          style: GoogleFonts.orbitron(
+            color: color,
+            fontWeight: FontWeight.bold,
+            fontSize: 18,
+          ),
+        ),
+        Text(
+          label.toUpperCase(),
+          style: GoogleFonts.inter(
+            color: isDark ? Colors.white38 : Colors.black38,
+            fontSize: 9,
+            letterSpacing: 1.2,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
 // ---------------- ARC PAINTER ----------------
 
 class _FuturisticGaugePainter extends CustomPainter {

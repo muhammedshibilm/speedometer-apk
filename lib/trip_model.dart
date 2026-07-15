@@ -31,6 +31,25 @@ class TripModel extends HiveObject {
   @HiveField(8)
   List<double> longitudes;
 
+  // ── New behavior fields (9–13) – default values keep old trips readable ──
+
+  @HiveField(9)
+  int harshBrakeCount;
+
+  @HiveField(10)
+  int harshAccelCount;
+
+  @HiveField(11)
+  int sharpCornerCount;
+
+  /// % of trip time spent above the speed limit (0–100).
+  @HiveField(12)
+  double timeOverLimitPct;
+
+  /// Drive score 0–100 (computed at end of trip).
+  @HiveField(13)
+  int driveScore;
+
   TripModel({
     required this.startTime,
     required this.durationSeconds,
@@ -41,5 +60,11 @@ class TripModel extends HiveObject {
     this.speedReadings = const [],
     this.latitudes = const [],
     this.longitudes = const [],
+    // New optional params – default to zero so old Hive data keeps working
+    this.harshBrakeCount = 0,
+    this.harshAccelCount = 0,
+    this.sharpCornerCount = 0,
+    this.timeOverLimitPct = 0.0,
+    this.driveScore = 100,
   });
 }

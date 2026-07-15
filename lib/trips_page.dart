@@ -10,6 +10,7 @@ import 'package:latlong2/latlong.dart';
 import 'package:tutorial_coach_mark/tutorial_coach_mark.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'trip_model.dart';
+import 'driving_behavior/trip_score.dart';
 
 class TripsPage extends StatefulWidget {
   const TripsPage({super.key});
@@ -375,6 +376,78 @@ class _TripCardState extends State<TripCard> {
                     ),
                   ],
                 ),
+
+                const SizedBox(height: 16),
+                
+                // ── DRIVING SCORE & BEHAVIOR ──
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: widget.isDark ? Colors.white.withValues(alpha: 0.05) : Colors.black.withValues(alpha: 0.03),
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'DRIVE SCORE',
+                            style: GoogleFonts.inter(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w600,
+                              color: widget.secondaryTextColor,
+                              letterSpacing: 1.0,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.baseline,
+                            textBaseline: TextBaseline.alphabetic,
+                            children: [
+                              Text(
+                                '${widget.trip.driveScore}',
+                                style: GoogleFonts.orbitron(
+                                  fontSize: 24,
+                                  fontWeight: FontWeight.bold,
+                                  color: _getScoreColor(widget.trip.driveScore),
+                                ),
+                              ),
+                              Text(
+                                ' / 100',
+                                style: GoogleFonts.inter(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w500,
+                                  color: widget.secondaryTextColor,
+                                ),
+                              ),
+                            ],
+                          ),
+                          Text(
+                            TripScore.label(widget.trip.driveScore),
+                            style: GoogleFonts.inter(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                              color: _getScoreColor(widget.trip.driveScore),
+                            ),
+                          ),
+                        ],
+                      ),
+                      
+                      // Mini stats
+                      Row(
+                        children: [
+                          _miniStat(Icons.warning_amber_rounded, widget.trip.harshBrakeCount, Colors.redAccent),
+                          const SizedBox(width: 12),
+                          _miniStat(Icons.speed, widget.trip.harshAccelCount, Colors.orangeAccent),
+                          const SizedBox(width: 12),
+                          _miniStat(Icons.turn_right_rounded, widget.trip.sharpCornerCount, Colors.blueAccent),
+                        ],
+                      )
+                    ],
+                  ),
+                ),
               ],
             ),
           ),
@@ -430,6 +503,29 @@ class _TripCardState extends State<TripCard> {
                 ),
               ),
             ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Color _getScoreColor(int score) {
+    final sc = TripScore.scoreColor(score);
+    return Color.fromARGB(255, sc.r, sc.g, sc.b);
+  }
+
+  Widget _miniStat(IconData icon, int count, Color color) {
+    final active = count > 0;
+    return Column(
+      children: [
+        Icon(icon, size: 16, color: active ? color : widget.secondaryTextColor.withValues(alpha: 0.5)),
+        const SizedBox(height: 4),
+        Text(
+          '$count',
+          style: GoogleFonts.inter(
+            fontSize: 12,
+            fontWeight: FontWeight.bold,
+            color: active ? widget.textColor : widget.secondaryTextColor.withValues(alpha: 0.5),
           ),
         ),
       ],

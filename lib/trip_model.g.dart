@@ -1,4 +1,5 @@
 // GENERATED CODE - DO NOT MODIFY BY HAND
+// (Hand-updated to add fields 9-13 for behavior tracking)
 
 part of 'trip_model.dart';
 
@@ -26,13 +27,19 @@ class TripModelAdapter extends TypeAdapter<TripModel> {
       speedReadings: (fields[6] as List).cast<double>(),
       latitudes: (fields[7] as List).cast<double>(),
       longitudes: (fields[8] as List).cast<double>(),
+      // New fields – safe defaults for old records that lack them
+      harshBrakeCount: (fields[9] as int?) ?? 0,
+      harshAccelCount: (fields[10] as int?) ?? 0,
+      sharpCornerCount: (fields[11] as int?) ?? 0,
+      timeOverLimitPct: (fields[12] as double?) ?? 0.0,
+      driveScore: (fields[13] as int?) ?? 100,
     );
   }
 
   @override
   void write(BinaryWriter writer, TripModel obj) {
     writer
-      ..writeByte(9)
+      ..writeByte(14) // total fields
       ..writeByte(0)
       ..write(obj.startTime)
       ..writeByte(1)
@@ -50,7 +57,17 @@ class TripModelAdapter extends TypeAdapter<TripModel> {
       ..writeByte(7)
       ..write(obj.latitudes)
       ..writeByte(8)
-      ..write(obj.longitudes);
+      ..write(obj.longitudes)
+      ..writeByte(9)
+      ..write(obj.harshBrakeCount)
+      ..writeByte(10)
+      ..write(obj.harshAccelCount)
+      ..writeByte(11)
+      ..write(obj.sharpCornerCount)
+      ..writeByte(12)
+      ..write(obj.timeOverLimitPct)
+      ..writeByte(13)
+      ..write(obj.driveScore);
   }
 
   @override
