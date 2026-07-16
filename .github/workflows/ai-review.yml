@@ -1,0 +1,41 @@
+name: AI PR Review (Multi-Reviewer)
+
+on:
+  pull_request:
+    types: [opened]
+
+permissions:
+  contents: read
+  pull-requests: write
+  models: read
+
+jobs:
+  review-security:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: muhammedshibilm/ai-pr-review-action@v1.2.0
+        with:
+          focus_areas: "security,edge-cases"
+
+  review-performance:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: muhammedshibilm/ai-pr-review-action@v1.2.0
+        with:
+          focus_areas: "performance,bugs"
+
+  review-readability:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: muhammedshibilm/ai-pr-review-action@v1.2.0
+        with:
+          focus_areas: "readability,tests"
