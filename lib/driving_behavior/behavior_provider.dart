@@ -15,10 +15,10 @@ import 'trip_score.dart';
 class BehaviorProvider extends ChangeNotifier {
   // ── Thresholds (configurable) ─────────────────────────────────────────────
   /// m/s² – GPS-derived deceleration that qualifies as harsh braking.
-  double harshBrakeThreshold = -1.5;
+  double harshBrakeThreshold = -0.5;
 
   /// m/s² – GPS-derived acceleration that qualifies as harsh accel.
-  double harshAccelThreshold = 1.5;
+  double harshAccelThreshold = 0.5;
 
   /// rad/s – gyroscope Z-axis spike for sharp corners.
   double cornerThreshold = 0.6;
@@ -42,7 +42,7 @@ class BehaviorProvider extends ChangeNotifier {
   DateTime? _lastAccelTime;
   DateTime? _lastCornerTime;
 
-  static const Duration _eventCooldown = Duration(seconds: 3);
+  static const Duration _eventCooldown = Duration(seconds: 2);
 
   StreamSubscription<GyroscopeEvent>? _gyroSub;
   StreamSubscription<UserAccelerometerEvent>? _accelSub;

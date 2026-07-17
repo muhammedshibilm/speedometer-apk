@@ -14,10 +14,6 @@ import 'package:tutorial_coach_mark/tutorial_coach_mark.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'trip_model.dart';
 import 'theme_provider.dart';
-import 'camera_alerts/camera_alert_provider.dart';
-import 'camera_alerts/camera_model.dart';
-import 'camera_alerts/overpass_service.dart';
-import 'camera_alerts/proximity_detector.dart';
 import 'driving_behavior/behavior_provider.dart';
 import 'driving_behavior/behavior_event_model.dart';
 import 'driving_behavior/trip_score.dart';
@@ -504,22 +500,12 @@ class _DrivePageState extends State<DrivePage> {
     _lastPosition = p;
     _checkSpeedLimit();
 
-    // ── Feed camera alerts ────────────────────────────────────────────────
-    final cameraProvider = Provider.of<CameraAlertProvider>(context, listen: false);
-    cameraProvider.onPositionUpdate(p);
-
     // ── Feed behavior tracker ─────────────────────────────────────────────
     final behaviorProvider = Provider.of<BehaviorProvider>(context, listen: false);
-    final nearestCamera = cameraProvider.nearestCamera;
     behaviorProvider.onSpeedUpdate(
       rawSpeedKmh,
-      speedLimitKmh: nearestCamera?.camera.maxspeed?.toDouble(),
+      speedLimitKmh: null,
     );
-
-    // ── Trigger camera sync on first good fix ─────────────────────────────
-    if (_allLatitudes.length == 1) {
-      cameraProvider.syncForLocation(p.latitude, p.longitude);
-    }
   }
 
   void _checkSpeedLimit() {
@@ -678,8 +664,6 @@ class _DrivePageState extends State<DrivePage> {
     final limit = themeProvider.speedLimit;
     final accentColor = _getSpeedColor(_speed, limit);
 
-    // Camera alert provider
-    final cameraProvider = Provider.of<CameraAlertProvider>(context);
     final behaviorProvider = Provider.of<BehaviorProvider>(context);
 
     return Scaffold(
@@ -695,13 +679,6 @@ class _DrivePageState extends State<DrivePage> {
                     padding: const EdgeInsets.all(20.0),
                     child: Column(
                       children: [
-
-              // ── CAMERA ALERT BANNER ───────────────────────────────────
-              if (cameraProvider.isAlertActive)
-                _CameraAlertBanner(
-                  result: cameraProvider.nearestCamera!,
-                  isDark: isDark,
-                ),
 
               // TOP BAR: SIGNAL & SPEED LIMIT
               Row(
@@ -1474,111 +1451,6 @@ class _DrivePageState extends State<DrivePage> {
               fontWeight: FontWeight.w600,
             ),
           ),
-        ],
-      ),
-    );
-  }
-}
-
-// ---------------- CAMERA ALERT BANNER ----------------
-
-class _CameraAlertBanner extends StatelessWidget {
-  final ProximityResult result;
-  final bool isDark;
-
-  const _CameraAlertBanner({
-    required this.result,
-    required this.isDark,
-  });
-
-  /// Returns an icon appropriate for the camera type.
-  IconData _iconFor(String type) {
-    switch (type) {
-      case CameraType.police:
-      case CameraType.anpr:
-        return Icons.local_police_outlined;
-      case CameraType.redLight:
-        return Icons.traffic_outlined;
-      case CameraType.averageSpeed:
-        return Icons.speed_outlined;
-      default:
-        return Icons.camera_alt_outlined;
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final label = result.camera.typeLabel.toUpperCase();
-    final limit = result.camera.maxspeed != null
-        ? ' · ${result.camera.maxspeed} KM/H'
-        : '';
-    final alertColor =
-        result.isCritical ? Colors.redAccent : Colors.orangeAccent;
-
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 300),
-      width: double.infinity,
-      margin: const EdgeInsets.only(bottom: 16),
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      decoration: BoxDecoration(
-        color: alertColor.withValues(alpha: isDark ? 0.18 : 0.1),
-        border: Border.all(color: alertColor, width: 2),
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          if (result.isCritical)
-            BoxShadow(
-              color: Colors.redAccent.withValues(alpha: 0.35),
-              blurRadius: 16,
-              spreadRadius: 3,
-            ),
-        ],
-      ),
-      child: Row(
-        children: [
-          Icon(_iconFor(result.camera.type), color: alertColor, size: 30),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  '$label AHEAD$limit',
-                  style: GoogleFonts.orbitron(
-                    color: isDark ? Colors.white : Colors.black87,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 13,
-                    letterSpacing: 0.8,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  result.distanceText,
-                  style: GoogleFonts.inter(
-                    color: alertColor,
-                    fontWeight: FontWeight.w800,
-                    fontSize: 20,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          // Pulse dot
-          if (result.isCritical)
-            Container(
-              width: 10,
-              height: 10,
-              decoration: BoxDecoration(
-                color: Colors.redAccent,
-                shape: BoxShape.circle,
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.redAccent.withValues(alpha: 0.7),
-                    blurRadius: 8,
-                    spreadRadius: 2,
-                  )
-                ],
-              ),
-            ),
         ],
       ),
     );

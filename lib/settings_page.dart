@@ -11,7 +11,6 @@ import 'package:geolocator/geolocator.dart';
 
 import 'trip_model.dart';
 import 'theme_provider.dart';
-import 'camera_alerts/camera_alert_provider.dart';
 
 class SettingsPage extends StatefulWidget {
   const SettingsPage({super.key});
@@ -152,61 +151,6 @@ class _SettingsPageState extends State<SettingsPage> {
                     isDark: isDark,
                   ),
                
-                  const SizedBox(height: 24),
-                  
-                  _sectionHeader('CAMERA ALERTS', isDark),
-                  Consumer<CameraAlertProvider>(
-                    builder: (context, cameraProvider, child) {
-                      return Column(
-                        children: [
-                          _glassSettingsTile(
-                            context,
-                            icon: Icons.camera_alt_outlined,
-                            title: 'Speed Cameras',
-                            subtitle: 'Alert for fixed speed cameras',
-                            trailing: Switch(
-                              value: cameraProvider.speedCameraEnabled,
-                              onChanged: (val) {
-                                cameraProvider.speedCameraEnabled = val;
-                                cameraProvider.notifyListeners(); // Force update
-                              },
-                              activeColor: Colors.blueAccent,
-                            ),
-                            isDark: isDark,
-                          ),
-                          _glassSettingsTile(
-                            context,
-                            icon: Icons.speed,
-                            title: 'Average Speed Cameras',
-                            subtitle: 'Alert for section control cameras',
-                            trailing: Switch(
-                              value: cameraProvider.avgSpeedCameraEnabled,
-                              onChanged: (val) {
-                                cameraProvider.avgSpeedCameraEnabled = val;
-                                cameraProvider.notifyListeners();
-                              },
-                              activeColor: Colors.blueAccent,
-                            ),
-                            isDark: isDark,
-                          ),
-                          _glassSettingsTile(
-                            context,
-                            icon: Icons.sync,
-                            title: 'Sync Camera Data',
-                            subtitle: cameraProvider.syncStatus,
-                            trailing: cameraProvider.isSyncing 
-                                ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
-                                : Icon(Icons.download, color: isDark ? Colors.white54 : Colors.black54),
-                            onTap: cameraProvider.isSyncing ? null : () async {
-                              final p = await Geolocator.getLastKnownPosition() ?? await Geolocator.getCurrentPosition();
-                              cameraProvider.syncForLocation(p.latitude, p.longitude, force: true);
-                            },
-                            isDark: isDark,
-                          ),
-                        ],
-                      );
-                    }
-                  ),
                   const SizedBox(height: 24),
                   
                   _sectionHeader('ABOUT', isDark),

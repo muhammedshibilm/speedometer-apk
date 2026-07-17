@@ -12,8 +12,6 @@ import 'tutorial_page.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 // New feature imports
-import 'camera_alerts/camera_model.dart';
-import 'camera_alerts/camera_alert_provider.dart';
 import 'driving_behavior/behavior_event_model.dart';
 import 'driving_behavior/behavior_provider.dart';
 
@@ -26,12 +24,10 @@ void main() async {
   // Init Hive – register ALL adapters before opening boxes
   await Hive.initFlutter();
   Hive.registerAdapter(TripModelAdapter());
-  Hive.registerAdapter(CameraModelAdapter());
   Hive.registerAdapter(BehaviorEventModelAdapter());
 
   await Hive.openBox<TripModel>('trips');
   await Hive.openBox<BehaviorEventModel>('behavior_events');
-  // cameras box is opened lazily by CameraAlertProvider.init()
 
   // Status bar style
   SystemChrome.setSystemUIOverlayStyle(
@@ -46,7 +42,6 @@ void main() async {
     MultiProvider(
       providers: [
         ChangeNotifierProvider(create: (_) => ThemeProvider()),
-        ChangeNotifierProvider(create: (_) => CameraAlertProvider()),
         ChangeNotifierProvider(create: (_) => BehaviorProvider()),
       ],
       child: const MyApp(),
@@ -72,11 +67,6 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
     WidgetsBinding.instance.addObserver(this);
     _themeProvider = Provider.of<ThemeProvider>(context, listen: false);
     _checkFirstTime();
-
-    // Initialise camera alert provider (opens Hive box, sets up sync timer)
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      Provider.of<CameraAlertProvider>(context, listen: false).init();
-    });
   }
 
   Future<void> _checkFirstTime() async {
