@@ -12,11 +12,12 @@ import 'package:audioplayers/audioplayers.dart';
 
 import 'package:tutorial_coach_mark/tutorial_coach_mark.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'trip_model.dart';
-import 'theme_provider.dart';
-import 'driving_behavior/behavior_provider.dart';
-import 'driving_behavior/behavior_event_model.dart';
-import 'driving_behavior/trip_score.dart';
+import 'package:speedy/models/trip_model.dart';
+import 'package:speedy/providers/theme_provider.dart';
+import 'package:speedy/driving_behavior/behavior_provider.dart';
+import 'package:speedy/driving_behavior/behavior_event_model.dart';
+import 'package:speedy/driving_behavior/trip_score.dart';
+import 'package:home_widget/home_widget.dart';
 
 class DrivePage extends StatefulWidget {
   const DrivePage({super.key});
@@ -611,6 +612,21 @@ class _DrivePageState extends State<DrivePage> {
         ));
       }
     }
+    
+    // Update Home Widget
+    try {
+      final score = summary?.driveScore ?? 100;
+      final label = TripScore.label(score);
+      
+      await HomeWidget.saveWidgetData<String>('trip_score', score.toString());
+      await HomeWidget.saveWidgetData<String>('score_label', label);
+      await HomeWidget.saveWidgetData<String>('max_speed', maxSpeed.toStringAsFixed(0));
+      await HomeWidget.saveWidgetData<String>('distance', (_distance / 1000).toStringAsFixed(1));
+      await HomeWidget.updateWidget(androidName: 'SpeedyWidgetProvider');
+    } catch (e) {
+      debugPrint('Error updating home widget: $e');
+    }
+    
     _lastBehaviorSummary = null;
   }
 

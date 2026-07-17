@@ -4,11 +4,11 @@ import 'package:hive_flutter/hive_flutter.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:provider/provider.dart';
-import 'package:speedy/home_shell.dart';
+import 'package:speedy/pages/home_shell.dart';
 
-import 'trip_model.dart';
-import 'theme_provider.dart';
-import 'tutorial_page.dart';
+import 'package:speedy/models/trip_model.dart';
+import 'package:speedy/providers/theme_provider.dart';
+import 'package:speedy/pages/tutorial_page.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 // New feature imports

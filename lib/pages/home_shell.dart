@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
 
-import 'drive_page.dart';
-import 'trips_page.dart';
-import 'settings_page.dart';
+import 'package:speedy/pages/drive_page.dart';
+import 'package:speedy/pages/trips_page.dart';
+import 'package:speedy/pages/settings_page.dart';
 
 class HomeShell extends StatefulWidget {
   const HomeShell({super.key});

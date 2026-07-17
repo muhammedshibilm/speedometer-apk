@@ -9,8 +9,8 @@ import 'package:package_info_plus/package_info_plus.dart';
 
 import 'package:geolocator/geolocator.dart';
 
-import 'trip_model.dart';
-import 'theme_provider.dart';
+import 'package:speedy/models/trip_model.dart';
+import 'package:speedy/providers/theme_provider.dart';
 
 class SettingsPage extends StatefulWidget {
   const SettingsPage({super.key});

@@ -9,8 +9,8 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:tutorial_coach_mark/tutorial_coach_mark.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'trip_model.dart';
-import 'driving_behavior/trip_score.dart';
+import 'package:speedy/models/trip_model.dart';
+import 'package:speedy/driving_behavior/trip_score.dart';
 
 class TripsPage extends StatefulWidget {
   const TripsPage({super.key});

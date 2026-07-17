@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import 'package:shared_preferences/shared_preferences.dart';
-import 'home_shell.dart';
+import 'package:speedy/pages/home_shell.dart';
 
 class TutorialPage extends StatefulWidget {
   final bool isOnboarding;
