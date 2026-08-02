@@ -2,7 +2,7 @@ name: speedy
 description: "Offline GPS speedometer with trip history"
 publish_to: 'none'
 
-version: 1.1.5+10
+version: 1.2.0+11
 
 environment:
   sdk: '>=3.3.0 <4.0.0'

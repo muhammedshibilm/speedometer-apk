@@ -18,6 +18,7 @@ import 'package:speedy/driving_behavior/behavior_provider.dart';
 import 'package:speedy/driving_behavior/behavior_event_model.dart';
 import 'package:speedy/driving_behavior/trip_score.dart';
 import 'package:home_widget/home_widget.dart';
+import 'package:sensors_plus/sensors_plus.dart';
 
 class DrivePage extends StatefulWidget {
   const DrivePage({super.key});
@@ -46,6 +47,9 @@ class _DrivePageState extends State<DrivePage> {
   TripBehaviorSummary? _lastBehaviorSummary;
 
   double _speed = 0;
+  double _fusedSpeed = 0; // Accelerometer-fused speed for higher responsiveness
+  DateTime _lastFusedUpdate = DateTime.now();
+  StreamSubscription<UserAccelerometerEvent>? _accelSpeedSub;
   double _distance = 0;
   double _accuracy = 999;
 
@@ -394,6 +398,7 @@ class _DrivePageState extends State<DrivePage> {
     setState(() {
       _tracking = true;
       _speed = 0;
+      _fusedSpeed = 0;
       _distance = 0;
       _accuracy = 999;
       _tripDuration = Duration.zero;
@@ -420,6 +425,48 @@ class _DrivePageState extends State<DrivePage> {
         distanceFilter: 0,
       ),
     ).listen(_onPosition);
+    
+    // ── High-Frequency Speedometer Sensor Fusion ────────────────────────
+    _accelSpeedSub?.cancel();
+    _accelSpeedSub = userAccelerometerEventStream(samplingPeriod: SensorInterval.uiInterval).listen((event) {
+      if (!_tracking || _lastPosition == null) return;
+      
+      final now = DateTime.now();
+      final dt = now.difference(_lastFusedUpdate).inMilliseconds / 1000.0;
+      _lastFusedUpdate = now;
+      
+      // Safety bounds for integration
+      if (dt <= 0 || dt > 1.0) return;
+
+      // Accelerometer magnitude
+      final mag = sqrt(event.x*event.x + event.y*event.y + event.z*event.z);
+      
+      // Determine direction of acceleration based on recent GPS trends
+      double accelSign = 0;
+      if (_recentSpeeds.length >= 2) {
+        final delta = _recentSpeeds.last - _recentSpeeds[_recentSpeeds.length - 2];
+        if (delta > 0.5) accelSign = 1;
+        else if (delta < -0.5) accelSign = -1;
+      }
+      
+      // If there's meaningful acceleration matching our macro GPS trend, fuse it!
+      if (mag > 0.3 && accelSign != 0) {
+         // Convert m/s^2 to km/h per second
+         final speedChangeKmh = (mag * accelSign) * 3.6 * dt;
+         
+         setState(() {
+            _fusedSpeed += speedChangeKmh;
+            
+            // Do not allow fused speed to go below 0
+            if (_fusedSpeed < 0) _fusedSpeed = 0;
+            
+            // Constrain drift (max 10% or 10 km/h deviation from true GPS)
+            if ((_fusedSpeed - _speed).abs() > max(10.0, _speed * 0.1)) {
+               _fusedSpeed = _fusedSpeed > _speed ? _speed + 10.0 : _speed - 10.0;
+            }
+         });
+      }
+    });
 
     // ── New: start behavior tracker & trigger camera sync ─────────────────
     final behaviorProvider = Provider.of<BehaviorProvider>(context, listen: false);
@@ -429,9 +476,11 @@ class _DrivePageState extends State<DrivePage> {
 
   void _stopTrackingOnly() {
     _positionStream?.cancel();
+    _accelSpeedSub?.cancel();
     _tripTimer?.cancel();
     _stopAlertLoop();
     _positionStream = null;
+    _accelSpeedSub = null;
     _tripTimer = null;
     setState(() => _tracking = false);
 
@@ -474,6 +523,12 @@ class _DrivePageState extends State<DrivePage> {
 
       setState(() {
         _speed = filteredSpeed;
+        
+        // ── Sensor Fusion ──────────────────────────────────────────
+        // Hard reset the fused speed to the exact GPS speed to eliminate drift
+        _fusedSpeed = _speed;
+        _lastFusedUpdate = DateTime.now();
+
         _distance += distanceMeters;
         
         // Update Session Metrics
@@ -496,6 +551,13 @@ class _DrivePageState extends State<DrivePage> {
         _allLatitudes.add(p.latitude);
         _allLongitudes.add(p.longitude);
       });
+    } else {
+      // First position
+      setState(() {
+        _speed = rawSpeedKmh;
+        _fusedSpeed = _speed;
+        _lastFusedUpdate = DateTime.now();
+      });
     }
   
     _lastPosition = p;
@@ -503,9 +565,13 @@ class _DrivePageState extends State<DrivePage> {
 
     // ── Feed behavior tracker ─────────────────────────────────────────────
     final behaviorProvider = Provider.of<BehaviorProvider>(context, listen: false);
+    final themeProvider = Provider.of<ThemeProvider>(context, listen: false);
+    
+    // Fix: pass the filtered _speed instead of raw noisy GPS speed
+    // Fix: pass the real speed limit instead of null
     behaviorProvider.onSpeedUpdate(
-      rawSpeedKmh,
-      speedLimitKmh: null,
+      _speed,
+      speedLimitKmh: themeProvider.speedLimit,
     );
   }
 
@@ -621,7 +687,8 @@ class _DrivePageState extends State<DrivePage> {
       await HomeWidget.saveWidgetData<String>('trip_score', score.toString());
       await HomeWidget.saveWidgetData<String>('score_label', label);
       await HomeWidget.saveWidgetData<String>('max_speed', maxSpeed.toStringAsFixed(0));
-      await HomeWidget.saveWidgetData<String>('distance', (_distance / 1000).toStringAsFixed(1));
+      await HomeWidget.saveWidgetData<String>('distance', (_distance / 1000).toStringAsFixed(2));
+      await HomeWidget.saveWidgetData<String>('duration', _formatDuration(_tripDuration));
       await HomeWidget.updateWidget(androidName: 'SpeedyWidgetProvider');
     } catch (e) {
       debugPrint('Error updating home widget: $e');
@@ -635,6 +702,7 @@ class _DrivePageState extends State<DrivePage> {
   void _resetTripState() {
     setState(() {
       _speed = 0;
+      _fusedSpeed = 0;
       _distance = 0;
       _accuracy = 999;
       _tripDuration = Duration.zero;
@@ -651,6 +719,7 @@ class _DrivePageState extends State<DrivePage> {
   void dispose() {
     _controller.dispose();
     _positionStream?.cancel();
+    _accelSpeedSub?.cancel();
     _tripTimer?.cancel();
     _stopAlertLoop();
     super.dispose();
@@ -678,7 +747,7 @@ class _DrivePageState extends State<DrivePage> {
     
     final themeProvider = Provider.of<ThemeProvider>(context);
     final limit = themeProvider.speedLimit;
-    final accentColor = _getSpeedColor(_speed, limit);
+    final accentColor = _getSpeedColor(_fusedSpeed, limit);
 
     final behaviorProvider = Provider.of<BehaviorProvider>(context);
 
@@ -741,8 +810,8 @@ class _DrivePageState extends State<DrivePage> {
                     // Glow Background (Reactive)
                     if (isDark)
                       TweenAnimationBuilder<double>(
-                        tween: Tween<double>(begin: 0, end: _speed),
-                        duration: const Duration(milliseconds: 500),
+                        tween: Tween<double>(begin: 0, end: _fusedSpeed),
+                        duration: const Duration(milliseconds: 100),
                         builder: (context, value, child) {
                           return Container(
                             width: gaugeSize * 0.8,
@@ -761,8 +830,8 @@ class _DrivePageState extends State<DrivePage> {
                         },
                       ),
                     TweenAnimationBuilder<double>(
-                      tween: Tween<double>(begin: 0, end: _speed),
-                      duration: const Duration(milliseconds: 300),
+                      tween: Tween<double>(begin: 0, end: _fusedSpeed),
+                      duration: const Duration(milliseconds: 100),
                       builder: (context, value, child) {
                         return CustomPaint(
                           size: Size(gaugeSize, gaugeSize),
@@ -779,8 +848,8 @@ class _DrivePageState extends State<DrivePage> {
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         TweenAnimationBuilder<double>(
-                          tween: Tween<double>(begin: 0, end: _speed),
-                          duration: const Duration(milliseconds: 300),
+                          tween: Tween<double>(begin: 0, end: _fusedSpeed),
+                          duration: const Duration(milliseconds: 100),
                           builder: (context, value, child) {
                             return Text(
                               value.toStringAsFixed(0),

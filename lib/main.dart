@@ -113,7 +113,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
           selectedItemColor: Colors.black,
           unselectedItemColor: Colors.grey,
         ),
-        useMaterial3: false,
+        useMaterial3: true,
       ),
       darkTheme: ThemeData(
         brightness: Brightness.dark,
@@ -130,7 +130,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
           selectedItemColor: Colors.white,
           unselectedItemColor: Colors.grey,
         ),
-        useMaterial3: false,
+        useMaterial3: true,
       ),
       themeMode: themeProvider.themeMode,
       home: _isLoading

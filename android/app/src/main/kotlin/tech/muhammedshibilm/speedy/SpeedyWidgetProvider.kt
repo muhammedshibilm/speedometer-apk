@@ -15,11 +15,13 @@ class SpeedyWidgetProvider : HomeWidgetProvider() {
                 val scoreLabel = widgetData.getString("score_label", "No Trip")
                 val maxSpeed = widgetData.getString("max_speed", "--")
                 val distance = widgetData.getString("distance", "--")
+                val duration = widgetData.getString("duration", "--")
 
                 setTextViewText(R.id.tv_trip_score, tripScore)
                 setTextViewText(R.id.tv_score_label, scoreLabel)
-                setTextViewText(R.id.tv_max_speed, "Max Speed: $maxSpeed")
-                setTextViewText(R.id.tv_distance, "Distance: $distance")
+                setTextViewText(R.id.tv_max_speed, "Max Speed: $maxSpeed km/h")
+                setTextViewText(R.id.tv_distance, "Distance: $distance km")
+                setTextViewText(R.id.tv_duration, "Duration: $duration")
                 
                 val colorHex = when(scoreLabel) {
                     "Excellent" -> "#00E576"
