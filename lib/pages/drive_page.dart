@@ -496,8 +496,17 @@ class _DrivePageState extends State<DrivePage> {
       _accuracy = p.accuracy;
     });
 
-    // Ignore positions with very low accuracy (weak signal)
-    if (p.accuracy > 25) return;
+    // Ignore positions with very low accuracy (weak signal / indoor)
+    if (p.accuracy > 25) {
+      if (_speed > 0) {
+        setState(() {
+          _speed = 0;
+          _fusedSpeed = 0;
+        });
+        _checkSpeedLimit();
+      }
+      return;
+    }
 
     double rawSpeedKmh = (p.speed < 0) ? 0 : p.speed * 3.6;
 
@@ -1780,6 +1789,18 @@ class _SignalBars extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.end,
       children: [
+        if (accuracy > 25)
+          Padding(
+            padding: const EdgeInsets.only(right: 8.0, bottom: 2.0),
+            child: Text(
+              "INDOOR / WEAK",
+              style: GoogleFonts.inter(
+                color: Colors.redAccent,
+                fontSize: 10,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
         Icon(Icons.gps_fixed, size: 14, color: isDark ? Colors.white38 : Colors.black38),
         const SizedBox(width: 6),
         ...List.generate(4, (index) {

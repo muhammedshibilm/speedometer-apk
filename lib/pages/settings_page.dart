@@ -66,24 +66,11 @@ class _SettingsPageState extends State<SettingsPage> {
     final themeProvider = Provider.of<ThemeProvider>(context);
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
-    // Gradient Background
-    final bgGradient = isDark
-        ? const LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [Colors.black, Color(0xFF1A1A1A)],
-          )
-        : const LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [Colors.white, Color(0xFFF5F5F5)],
-          );
-
     return Scaffold(
-      extendBodyBehindAppBar: true,
+      backgroundColor: isDark ? Colors.black : Colors.white,
       appBar: AppBar(
         elevation: 0,
-        backgroundColor: Colors.transparent,
+        backgroundColor: isDark ? Colors.black : Colors.white,
         title: Text(
           'Settings',
           style: GoogleFonts.outfit(
@@ -94,13 +81,11 @@ class _SettingsPageState extends State<SettingsPage> {
         ),
         centerTitle: true,
       ),
-      body: Container(
-        decoration: BoxDecoration(gradient: bgGradient),
-        child: SafeArea(
-          child: Center(
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 800),
-              child: ListView(
+      body: SafeArea(
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 800),
+            child: ListView(
                 padding: const EdgeInsets.all(20),
                 children: [
                   _sectionHeader('DATA MANAGEMENT', isDark),
@@ -205,7 +190,6 @@ class _SettingsPageState extends State<SettingsPage> {
             ),
           ),
         ),
-      ),
     );
   }
 
