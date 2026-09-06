@@ -88,6 +88,18 @@ class _SettingsPageState extends State<SettingsPage> {
             child: ListView(
                 padding: const EdgeInsets.all(20),
                 children: [
+                  _sectionHeader('APPEARANCE', isDark),
+                  _glassSettingsTile(
+                    context,
+                    icon: Icons.dark_mode_outlined,
+                    title: 'Theme',
+                    subtitle: _getThemeModeString(themeProvider),
+                    trailing: Icon(Icons.chevron_right,
+                        color: isDark ? Colors.white54 : Colors.black54),
+                    onTap: () => _showThemePicker(context, themeProvider, isDark),
+                    isDark: isDark,
+                  ),
+                  const SizedBox(height: 24),
                   _sectionHeader('DATA MANAGEMENT', isDark),
                   _glassSettingsTile(
                     context,
@@ -351,6 +363,76 @@ class _SettingsPageState extends State<SettingsPage> {
     }
   }
 
+
+  String _getThemeModeString(ThemeProvider provider) {
+    if (provider.useSystemTheme) return 'System Default';
+    return provider.themeMode == ThemeMode.dark ? 'Dark Mode' : 'Light Mode';
+  }
+
+  void _showThemePicker(
+      BuildContext context, ThemeProvider themeProvider, bool isDark) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (context) => Container(
+        decoration: BoxDecoration(
+          color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Select Theme',
+              style: GoogleFonts.outfit(
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+                color: isDark ? Colors.white : Colors.black,
+              ),
+            ),
+            const SizedBox(height: 20),
+            _themeOption(context, themeProvider, 'System Default', isDark),
+            _themeOption(context, themeProvider, 'Light Mode', isDark),
+            _themeOption(context, themeProvider, 'Dark Mode', isDark),
+            const SizedBox(height: 20),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _themeOption(BuildContext context, ThemeProvider provider,
+      String mode, bool isDark) {
+    bool isSelected = _getThemeModeString(provider) == mode;
+
+    return ListTile(
+      contentPadding: EdgeInsets.zero,
+      title: Text(
+        mode,
+        style: GoogleFonts.inter(
+          color: isSelected
+              ? Colors.blueAccent
+              : (isDark ? Colors.white : Colors.black),
+          fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+        ),
+      ),
+      trailing: isSelected
+          ? const Icon(Icons.check_circle, color: Colors.blueAccent)
+          : null,
+      onTap: () {
+        if (mode == 'System Default') {
+          provider.setThemeModeString('system');
+        } else if (mode == 'Dark Mode') {
+          provider.setThemeModeString('dark');
+        } else {
+          provider.setThemeModeString('light');
+        }
+        Navigator.pop(context);
+      },
+    );
+  }
 
   void _showAlertPicker(
       BuildContext context, ThemeProvider themeProvider, bool isDark) {

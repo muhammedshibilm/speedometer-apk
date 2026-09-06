@@ -73,6 +73,19 @@ class ThemeProvider extends ChangeNotifier {
     }
   }
 
+  void setThemeModeString(String mode) {
+    if (mode == 'system') {
+      _useSystemTheme = true;
+      _settingsBox.put(_systemThemeKey, true);
+    } else {
+      _useSystemTheme = false;
+      _themeMode = mode;
+      _settingsBox.put(_systemThemeKey, false);
+      _settingsBox.put(_themeKey, mode);
+    }
+    notifyListeners();
+  }
+
   void setSpeedLimit(double limit) {
     _speedLimit = limit;
     _settingsBox.put(_speedLimitKey, _speedLimit);

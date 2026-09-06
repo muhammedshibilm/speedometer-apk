@@ -116,54 +116,102 @@ class _HomeShellState extends State<HomeShell> {
         index: _currentIndex,
         children: _pages,
       ),
-      bottomNavigationBar: SafeArea(
-        child: Container(
-          margin: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-          decoration: BoxDecoration(
-            color: Theme.of(context).brightness == Brightness.dark 
-                ? const Color(0xFF1E1E1E) 
-                : Colors.white,
-            borderRadius: BorderRadius.circular(30),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.1),
-                blurRadius: 20,
-                offset: const Offset(0, 10),
-              ),
-            ],
-          ),
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(30),
-            child: NavigationBar(
-              height: 65,
-              elevation: 0,
-              backgroundColor: Colors.transparent,
-              indicatorColor: Theme.of(context).colorScheme.primaryContainer,
-              selectedIndex: _currentIndex,
-              onDestinationSelected: (index) {
-                setState(() {
-                  _currentIndex = index;
-                });
-              },
-              destinations: const [
-                NavigationDestination(
-                  icon: Icon(Icons.speed_outlined),
-                  selectedIcon: Icon(Icons.speed),
-                  label: 'Drive',
-                ),
-                NavigationDestination(
-                  icon: Icon(Icons.history_outlined),
-                  selectedIcon: Icon(Icons.history),
-                  label: 'Trips',
-                ),
-                NavigationDestination(
-                  icon: Icon(Icons.settings_outlined),
-                  selectedIcon: Icon(Icons.settings),
-                  label: 'Settings',
-                ),
-              ],
+      bottomNavigationBar: Container(
+        color: Theme.of(context).brightness == Brightness.dark 
+            ? const Color(0xFF101216) 
+            : Colors.white,
+        padding: EdgeInsets.only(
+          bottom: MediaQuery.of(context).padding.bottom + 8,
+          top: 8,
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+          children: [
+            _buildNavItem(
+              context: context,
+              index: 0,
+              icon: Icons.speed_rounded, // or CupertinoIcons.speedometer
+              label: 'DRIVE',
             ),
-          ),
+            _buildNavItem(
+              context: context,
+              index: 1,
+              icon: Icons.alt_route_rounded, // or Icons.history
+              label: 'TRIPS',
+            ),
+            _buildNavItem(
+              context: context,
+              index: 2,
+              icon: Icons.settings_outlined,
+              label: 'SETTINGS',
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildNavItem({
+    required BuildContext context,
+    required int index,
+    required IconData icon,
+    required String label,
+  }) {
+    final isSelected = _currentIndex == index;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    
+    // Mockup active color is a bright cyan
+    final activeColor = Colors.cyanAccent.shade400;
+    final inactiveColor = isDark ? Colors.white38 : Colors.black38;
+    
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: () {
+        setState(() {
+          _currentIndex = index;
+        });
+      },
+      child: SizedBox(
+        width: 80,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Top Indicator Line
+            AnimatedOpacity(
+              duration: const Duration(milliseconds: 200),
+              opacity: isSelected ? 1.0 : 0.0,
+              child: Container(
+                width: 40,
+                height: 2,
+                margin: const EdgeInsets.only(bottom: 8),
+                decoration: BoxDecoration(
+                  color: activeColor,
+                  boxShadow: [
+                    BoxShadow(
+                      color: activeColor.withValues(alpha: 0.5),
+                      blurRadius: 4,
+                      spreadRadius: 1,
+                    )
+                  ],
+                ),
+              ),
+            ),
+            Icon(
+              icon,
+              color: isSelected ? activeColor : inactiveColor,
+              size: 28,
+            ),
+            const SizedBox(height: 6),
+            Text(
+              label,
+              style: TextStyle(
+                color: isSelected ? activeColor : inactiveColor,
+                fontSize: 10,
+                fontWeight: isSelected ? FontWeight.w700 : FontWeight.w600,
+                letterSpacing: 1.0,
+              ),
+            ),
+          ],
         ),
       ),
     );

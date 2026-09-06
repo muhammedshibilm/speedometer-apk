@@ -7,7 +7,6 @@ import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:intl/intl.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
-import 'package:tutorial_coach_mark/tutorial_coach_mark.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:speedy/models/trip_model.dart';
 import 'package:speedy/driving_behavior/trip_score.dart';
@@ -22,9 +21,6 @@ class TripsPage extends StatefulWidget {
 class _TripsPageState extends State<TripsPage> {
   late BannerAd _bannerAd;
   bool _isBannerLoaded = false;
-  final GlobalKey _mapIconKey = GlobalKey();
-  late TutorialCoachMark tutorialCoachMark;
-  List<TargetFocus> targets = [];
 
   @override
   void initState() {
@@ -41,80 +37,6 @@ class _TripsPageState extends State<TripsPage> {
         },
       ),
     )..load();
-
-    Future.delayed(const Duration(milliseconds: 1000), () {
-      _checkAndShowTutorial();
-    });
-  }
-
-  Future<void> _checkAndShowTutorial() async {
-    final prefs = await SharedPreferences.getInstance();
-    final shown = prefs.getBool('trips_tutorial_shown') ?? false;
-    
-    // Only show if there's at least one trip and tutorial not shown
-    final box = Hive.box<TripModel>('trips');
-    if (!shown && box.isNotEmpty) {
-      _showTutorial();
-      await prefs.setBool('trips_tutorial_shown', true);
-    }
-  }
-
-  void _showTutorial() {
-    _initTargets();
-    tutorialCoachMark = TutorialCoachMark(
-      targets: targets,
-      colorShadow: Colors.black,
-      opacityShadow: 0.8,
-      paddingFocus: 10,
-      textSkip: "SKIP",
-      onFinish: () => debugPrint("Trips Tutorial Finished"),
-      onClickTarget: (target) => debugPrint("Clicked target"),
-    )..show(context: context);
-  }
-
-  void _initTargets() {
-    targets.clear();
-    targets.add(
-      TargetFocus(
-        identify: "map_icon",
-        keyTarget: _mapIconKey,
-        contents: [
-          TargetContent(
-            align: ContentAlign.bottom,
-            builder: (context, controller) {
-              return Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    "View Trip Path",
-                    style: GoogleFonts.orbitron(
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
-                      fontSize: 20,
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                  Text(
-                    "Tap this map icon to view your recorded trip path and locations on the map.",
-                    style: GoogleFonts.inter(color: Colors.white),
-                  ),
-                  const SizedBox(height: 20),
-                  ElevatedButton(
-                    onPressed: () => controller.next(),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.white24,
-                      foregroundColor: Colors.white,
-                    ),
-                    child: const Text("GOT IT"),
-                  ),
-                ],
-              );
-            },
-          ),
-        ],
-      ),
-    );
   }
 
   @override
@@ -212,7 +134,6 @@ class _TripsPageState extends State<TripsPage> {
                         cardBgColor: cardBgColor,
                         textColor: textColor,
                         secondaryTextColor: secondaryTextColor,
-                        mapIconKey: index == 0 ? _mapIconKey : null,
                       ),
                     );
                   },
@@ -242,7 +163,6 @@ class TripCard extends StatefulWidget {
   final Color cardBgColor;
   final Color textColor;
   final Color secondaryTextColor;
-  final GlobalKey? mapIconKey;
 
   const TripCard({
     super.key,
@@ -251,7 +171,6 @@ class TripCard extends StatefulWidget {
     required this.cardBgColor,
     required this.textColor,
     required this.secondaryTextColor,
-    this.mapIconKey,
   });
 
   @override
@@ -339,7 +258,6 @@ class _TripCardState extends State<TripCard> {
                       ),
                     ),
                     IconButton(
-                      key: widget.mapIconKey,
                       onPressed: () => _showMapDialog(context),
                       icon: Icon(Icons.map_outlined, color: widget.isDark ? Colors.white70 : Colors.black54),
                       tooltip: 'View Map',
