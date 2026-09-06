@@ -5,11 +5,9 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:intl/intl.dart';
-import 'package:flutter_map/flutter_map.dart';
-import 'package:latlong2/latlong.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-import 'package:speedy/models/trip_model.dart';
-import 'package:speedy/driving_behavior/trip_score.dart';
+import 'package:ignite/models/trip_model.dart';
+import 'package:ignite/driving_behavior/trip_score.dart';
+import 'package:ignite/pages/trip_detail_page.dart';
 
 class TripsPage extends StatefulWidget {
   const TripsPage({super.key});
@@ -67,7 +65,6 @@ class _TripsPageState extends State<TripsPage> {
       ),
       body: Column(
         children: [
-    
           Expanded(
             child: ValueListenableBuilder(
               valueListenable: box.listenable(),
@@ -157,7 +154,7 @@ class _TripsPageState extends State<TripsPage> {
 
 /// ---------------- TRIP CARD ----------------
 
-class TripCard extends StatefulWidget {
+class TripCard extends StatelessWidget {
   final TripModel trip;
   final bool isDark;
   final Color cardBgColor;
@@ -173,200 +170,216 @@ class TripCard extends StatefulWidget {
     required this.secondaryTextColor,
   });
 
-  @override
-  State<TripCard> createState() => _TripCardState();
-}
-
-class _TripCardState extends State<TripCard> {
-
+  void _openDetail(BuildContext context) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => TripDetailPage(trip: trip)),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
-    final duration = Duration(seconds: widget.trip.durationSeconds);
-    final date =
-        DateFormat('dd MMM yyyy • hh:mm a').format(widget.trip.startTime);
+    final duration = Duration(seconds: trip.durationSeconds);
+    final date = DateFormat('dd MMM yyyy • hh:mm a').format(trip.startTime);
 
+    final gradientColors = isDark
+        ? [
+            Colors.white.withValues(alpha: 0.10),
+            Colors.white.withValues(alpha: 0.05),
+          ]
+        : [
+            Colors.black.withValues(alpha: 0.05),
+            Colors.black.withValues(alpha: 0.02),
+          ];
 
-    // Premium Colors & Gradients
-    final gradientColors = widget.isDark
-        ? [Colors.white.withValues(alpha: 0.1), Colors.white.withValues(alpha: 0.05)]
-        : [Colors.black.withValues(alpha: 0.05), Colors.black.withValues(alpha: 0.02)];
-    
-    final borderColor = widget.isDark 
-        ? Colors.white.withValues(alpha: 0.15) 
-        : Colors.black.withValues(alpha: 0.1);
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(24),
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: gradientColors,
-        ),
-        border: Border.all(color: borderColor, width: 1.5),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.1),
-            blurRadius: 15,
-            offset: const Offset(0, 8),
+    final borderColor = isDark
+        ? Colors.white.withValues(alpha: 0.15)
+        : Colors.black.withValues(alpha: 0.10);
+
+    return GestureDetector(
+      onTap: () => _openDetail(context),
+      child: Container(
+        margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(24),
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: gradientColors,
           ),
-        ],
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(24),
-        child: BackdropFilter(
-          filter: imageUrl.ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-          child: Padding(
-            padding: const EdgeInsets.all(20),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                 /// HEADER SECTION
-                Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(10),
-                      decoration: BoxDecoration(
-                        color: Colors.blueAccent.withValues(alpha: 0.2),
-                        shape: BoxShape.circle,
-                      ),
-                      child: const Icon(Icons.route, color: Colors.blueAccent, size: 20),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            widget.trip.name.isNotEmpty ? widget.trip.name : 'Untitled Trip',
-                            style: GoogleFonts.outfit(
-                              color: widget.textColor,
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                          Text(
-                            date,
-                            style: GoogleFonts.inter(
-                              color: widget.secondaryTextColor,
-                              fontSize: 12,
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    IconButton(
-                      onPressed: () => _showMapDialog(context),
-                      icon: Icon(Icons.map_outlined, color: widget.isDark ? Colors.white70 : Colors.black54),
-                      tooltip: 'View Map',
-                    ),
-                  ],
-                ),
-
-                const Divider(height: 30, thickness: 0.5),
-
-                 /// INFO GRID
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    _premiumMetric(
-                      label: 'DISTANCE',
-                      value: widget.trip.distanceKm.toStringAsFixed(2),
-                      unit: 'km',
-                      icon: Icons.map,
-                      color: Colors.cyanAccent,
-                    ),
-                    _premiumMetric(
-                      label: 'DURATION',
-                      value: '${duration.inMinutes}',
-                      unit: 'min',
-                      icon: Icons.timer,
-                      color: Colors.orangeAccent,
-                    ),
-                    _premiumMetric(
-                      label: 'MAX SPEED',
-                      value: widget.trip.maxSpeed.toStringAsFixed(0),
-                      unit: 'km/h',
-                      icon: Icons.speed,
-                      color: Colors.redAccent,
-                    ),
-                  ],
-                ),
-
-                const SizedBox(height: 16),
-                
-                // ── DRIVING SCORE & BEHAVIOR ──
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: widget.isDark ? Colors.white.withValues(alpha: 0.05) : Colors.black.withValues(alpha: 0.03),
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          border: Border.all(color: borderColor, width: 1.5),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.1),
+              blurRadius: 15,
+              offset: const Offset(0, 8),
+            ),
+          ],
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(24),
+          child: BackdropFilter(
+            filter: imageUrl.ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+            child: Padding(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  /// HEADER SECTION
+                  Row(
                     children: [
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'DRIVE SCORE',
-                            style: GoogleFonts.inter(
-                              fontSize: 10,
-                              fontWeight: FontWeight.w600,
-                              color: widget.secondaryTextColor,
-                              letterSpacing: 1.0,
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          Row(
-                            crossAxisAlignment: CrossAxisAlignment.baseline,
-                            textBaseline: TextBaseline.alphabetic,
-                            children: [
-                              Text(
-                                '${widget.trip.driveScore}',
-                                style: GoogleFonts.orbitron(
-                                  fontSize: 24,
-                                  fontWeight: FontWeight.bold,
-                                  color: _getScoreColor(widget.trip.driveScore),
-                                ),
-                              ),
-                              Text(
-                                ' / 100',
-                                style: GoogleFonts.inter(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w500,
-                                  color: widget.secondaryTextColor,
-                                ),
-                              ),
-                            ],
-                          ),
-                          Text(
-                            TripScore.label(widget.trip.driveScore),
-                            style: GoogleFonts.inter(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
-                              color: _getScoreColor(widget.trip.driveScore),
-                            ),
-                          ),
-                        ],
+                      Container(
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: Colors.orangeAccent.withValues(alpha: 0.2),
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(Icons.route,
+                            color: Colors.orangeAccent, size: 20),
                       ),
-                      
-                      // Mini stats
-                      Row(
-                        children: [
-                          _miniStat(Icons.warning_amber_rounded, widget.trip.harshBrakeCount, Colors.redAccent),
-                          const SizedBox(width: 12),
-                          _miniStat(Icons.speed, widget.trip.harshAccelCount, Colors.orangeAccent),
-                          const SizedBox(width: 12),
-                          _miniStat(Icons.turn_right_rounded, widget.trip.sharpCornerCount, Colors.blueAccent),
-                        ],
-                      )
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              trip.name.isNotEmpty
+                                  ? trip.name
+                                  : 'Untitled Trip',
+                              style: GoogleFonts.outfit(
+                                color: textColor,
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            Text(
+                              date,
+                              style: GoogleFonts.inter(
+                                color: secondaryTextColor,
+                                fontSize: 12,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      // "Tap to open" indicator
+                      Icon(
+                        Icons.chevron_right_rounded,
+                        color: isDark ? Colors.white38 : Colors.black26,
+                        size: 24,
+                      ),
                     ],
                   ),
-                ),
-              ],
+
+                  const Divider(height: 30, thickness: 0.5),
+
+                  /// INFO GRID
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      _premiumMetric(
+                        label: 'DISTANCE',
+                        value: trip.distanceKm.toStringAsFixed(2),
+                        unit: 'km',
+                        icon: Icons.map,
+                        color: Colors.cyanAccent,
+                      ),
+                      _premiumMetric(
+                        label: 'DURATION',
+                        value: '${duration.inMinutes}',
+                        unit: 'min',
+                        icon: Icons.timer,
+                        color: Colors.orangeAccent,
+                      ),
+                      _premiumMetric(
+                        label: 'MAX SPEED',
+                        value: trip.maxSpeed.toStringAsFixed(0),
+                        unit: 'km/h',
+                        icon: Icons.speed,
+                        color: Colors.redAccent,
+                      ),
+                    ],
+                  ),
+
+                  const SizedBox(height: 16),
+
+                  // ── DRIVING SCORE & BEHAVIOR ──
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: isDark
+                          ? Colors.white.withValues(alpha: 0.05)
+                          : Colors.black.withValues(alpha: 0.03),
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'DRIVE SCORE',
+                              style: GoogleFonts.inter(
+                                fontSize: 10,
+                                fontWeight: FontWeight.w600,
+                                color: secondaryTextColor,
+                                letterSpacing: 1.0,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Row(
+                              crossAxisAlignment: CrossAxisAlignment.baseline,
+                              textBaseline: TextBaseline.alphabetic,
+                              children: [
+                                Text(
+                                  '${trip.driveScore}',
+                                  style: GoogleFonts.orbitron(
+                                    fontSize: 24,
+                                    fontWeight: FontWeight.bold,
+                                    color: _getScoreColor(trip.driveScore),
+                                  ),
+                                ),
+                                Text(
+                                  ' / 100',
+                                  style: GoogleFonts.inter(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w500,
+                                    color: secondaryTextColor,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            Text(
+                              TripScore.label(trip.driveScore),
+                              style: GoogleFonts.inter(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                                color: _getScoreColor(trip.driveScore),
+                              ),
+                            ),
+                          ],
+                        ),
+
+                        // Mini stats
+                        Row(
+                          children: [
+                            _miniStat(Icons.warning_amber_rounded,
+                                trip.harshBrakeCount, Colors.redAccent),
+                            const SizedBox(width: 12),
+                            _miniStat(Icons.speed, trip.harshAccelCount,
+                                Colors.orangeAccent),
+                            const SizedBox(width: 12),
+                            _miniStat(Icons.turn_right_rounded,
+                                trip.sharpCornerCount, Colors.blueAccent),
+                          ],
+                        )
+                      ],
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         ),
@@ -387,14 +400,16 @@ class _TripCardState extends State<TripCard> {
         Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, size: 14, color: widget.secondaryTextColor.withValues(alpha: 0.7)),
+            Icon(icon,
+                size: 14,
+                color: secondaryTextColor.withValues(alpha: 0.7)),
             const SizedBox(width: 4),
             Text(
               label,
               style: GoogleFonts.inter(
                 fontSize: 10,
                 fontWeight: FontWeight.w600,
-                color: widget.secondaryTextColor.withValues(alpha: 0.7),
+                color: secondaryTextColor.withValues(alpha: 0.7),
                 letterSpacing: 1.0,
               ),
             ),
@@ -409,7 +424,7 @@ class _TripCardState extends State<TripCard> {
                 style: GoogleFonts.orbitron(
                   fontSize: 20,
                   fontWeight: FontWeight.bold,
-                  color: widget.textColor,
+                  color: textColor,
                 ),
               ),
               TextSpan(
@@ -436,103 +451,23 @@ class _TripCardState extends State<TripCard> {
     final active = count > 0;
     return Column(
       children: [
-        Icon(icon, size: 16, color: active ? color : widget.secondaryTextColor.withValues(alpha: 0.5)),
+        Icon(icon,
+            size: 16,
+            color: active
+                ? color
+                : secondaryTextColor.withValues(alpha: 0.5)),
         const SizedBox(height: 4),
         Text(
           '$count',
           style: GoogleFonts.inter(
             fontSize: 12,
             fontWeight: FontWeight.bold,
-            color: active ? widget.textColor : widget.secondaryTextColor.withValues(alpha: 0.5),
+            color: active
+                ? textColor
+                : secondaryTextColor.withValues(alpha: 0.5),
           ),
         ),
       ],
     );
   }
-
-  void _showMapDialog(BuildContext context) {
-    if (widget.trip.latitudes.isEmpty || widget.trip.longitudes.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('No location data available for this trip')),
-      );
-      return;
-    }
-
-    final points = <LatLng>[];
-    for (int i = 0; i < widget.trip.latitudes.length; i++) {
-        points.add(LatLng(widget.trip.latitudes[i], widget.trip.longitudes[i]));
-    }
-
-    if (points.isEmpty) return;
-
-    final startPoint = points.first;
-    final endPoint = points.last;
-
-    showDialog(
-      context: context,
-      builder: (ctx) {
-        return AlertDialog(
-          backgroundColor: widget.isDark ? Colors.grey.shade900 : Colors.white,
-          contentPadding: EdgeInsets.zero,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-          title: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-               Text(
-                'Trip Path',
-                style: GoogleFonts.inter(color: widget.textColor, fontSize: 18, fontWeight: FontWeight.bold),
-              ),
-              IconButton(onPressed: () => Navigator.pop(ctx), icon: const Icon(Icons.close))
-            ],
-          ),
-          content: SizedBox(
-            height: 400,
-            width: double.maxFinite,
-            child: ClipRRect(
-              borderRadius: const BorderRadius.vertical(bottom: Radius.circular(24)),
-              child: FlutterMap(
-                options: MapOptions(
-                  initialCenter: startPoint,
-                  initialZoom: 15,
-                ),
-                children: [
-                  TileLayer(
-                    urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                    userAgentPackageName: 'com.example.speedy',
-                  ),
-                  PolylineLayer(
-                    polylines: [
-                      Polyline(
-                        points: points,
-                        strokeWidth: 4,
-                        color: Colors.blueAccent,
-                      ),
-                    ],
-                  ),
-                  MarkerLayer(
-                    markers: [
-                      Marker(
-                        point: startPoint,
-                        width: 40,
-                        height: 40,
-                        child: const Icon(Icons.location_on, color: Colors.green, size: 30),
-                      ),
-                      Marker(
-                        point: endPoint,
-                        width: 40,
-                        height: 40,
-                        child: const Icon(Icons.flag, color: Colors.red, size: 30),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ),
-        );
-      },
-    );
-  }
-
 }
-

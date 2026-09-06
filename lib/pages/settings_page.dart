@@ -9,8 +9,8 @@ import 'package:package_info_plus/package_info_plus.dart';
 
 import 'package:geolocator/geolocator.dart';
 
-import 'package:speedy/models/trip_model.dart';
-import 'package:speedy/providers/theme_provider.dart';
+import 'package:ignite/models/trip_model.dart';
+import 'package:ignite/providers/theme_provider.dart';
 
 class SettingsPage extends StatefulWidget {
   const SettingsPage({super.key});
@@ -67,10 +67,10 @@ class _SettingsPageState extends State<SettingsPage> {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
-      backgroundColor: isDark ? Colors.black : Colors.white,
+      backgroundColor: isDark ? const Color(0xFF0A0A0C) : const Color(0xFFF7F8FA),
       appBar: AppBar(
         elevation: 0,
-        backgroundColor: isDark ? Colors.black : Colors.white,
+        backgroundColor: isDark ? const Color(0xFF0A0A0C) : const Color(0xFFF7F8FA),
         title: Text(
           'Settings',
           style: GoogleFonts.outfit(
@@ -121,10 +121,10 @@ class _SettingsPageState extends State<SettingsPage> {
                       width: 150,
                       child: SliderTheme(
                         data: SliderTheme.of(context).copyWith(
-                          activeTrackColor: Colors.blueAccent,
+                          activeTrackColor: const Color(0xFFFF5722),
                           inactiveTrackColor: isDark ? Colors.white10 : Colors.black.withValues(alpha: 0.1),
-                          thumbColor: Colors.blueAccent,
-                          overlayColor: Colors.blueAccent.withValues(alpha: 0.1),
+                          thumbColor: const Color(0xFFFF5722),
+                          overlayColor: const Color(0x22FF5722),
                         ),
                         child: Slider(
                           value: themeProvider.speedLimit,
@@ -211,7 +211,7 @@ class _SettingsPageState extends State<SettingsPage> {
       child: Text(
         title,
         style: GoogleFonts.inter(
-          color: isDark ? Colors.blueAccent : Colors.blueGrey,
+          color: isDark ? const Color(0xFFFF5722) : const Color(0xFFBF360C),
           fontSize: 12,
           fontWeight: FontWeight.w700,
           letterSpacing: 1.5,
@@ -260,14 +260,14 @@ class _SettingsPageState extends State<SettingsPage> {
                         ? Colors.redAccent.withValues(alpha: 0.1)
                         : (isDark
                             ? Colors.white.withValues(alpha: 0.05)
-                            : Colors.blueAccent.withValues(alpha: 0.05)),
+                            : const Color(0xFFFF5722).withValues(alpha: 0.08)),
                     shape: BoxShape.circle,
                   ),
                   child: Icon(
                     icon,
                     color: isDestructive
                         ? Colors.redAccent
-                        : (isDark ? Colors.white : Colors.blueAccent),
+                        : (isDark ? const Color(0xFFFF5722) : const Color(0xFFFF5722)),
                     size: 22,
                   ),
                 ),
@@ -314,7 +314,7 @@ class _SettingsPageState extends State<SettingsPage> {
     final confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        backgroundColor: isDark ? const Color(0xFF1E1E1E) : Colors.white,
+        backgroundColor: isDark ? const Color(0xFF141418) : Colors.white,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: Text('Clear History',
             style: GoogleFonts.outfit(
@@ -376,7 +376,7 @@ class _SettingsPageState extends State<SettingsPage> {
       backgroundColor: Colors.transparent,
       builder: (context) => Container(
         decoration: BoxDecoration(
-          color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
+          color: isDark ? const Color(0xFF141418) : Colors.white,
           borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
         ),
         padding: const EdgeInsets.all(24),
@@ -413,13 +413,13 @@ class _SettingsPageState extends State<SettingsPage> {
         mode,
         style: GoogleFonts.inter(
           color: isSelected
-              ? Colors.blueAccent
+              ? const Color(0xFFFF5722)
               : (isDark ? Colors.white : Colors.black),
           fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
         ),
       ),
       trailing: isSelected
-          ? const Icon(Icons.check_circle, color: Colors.blueAccent)
+          ? const Icon(Icons.check_circle, color: Color(0xFFFF5722))
           : null,
       onTap: () {
         if (mode == 'System Default') {
@@ -441,7 +441,7 @@ class _SettingsPageState extends State<SettingsPage> {
       backgroundColor: Colors.transparent,
       builder: (context) => Container(
         decoration: BoxDecoration(
-          color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
+          color: isDark ? const Color(0xFF141418) : Colors.white,
           borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
         ),
         padding: const EdgeInsets.all(24),
@@ -479,13 +479,13 @@ class _SettingsPageState extends State<SettingsPage> {
         mode,
         style: GoogleFonts.inter(
           color: isSelected
-              ? Colors.blueAccent
+              ? const Color(0xFFFF5722)
               : (isDark ? Colors.white : Colors.black),
           fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
         ),
       ),
       trailing: isSelected
-          ? const Icon(Icons.check_circle, color: Colors.blueAccent)
+          ? const Icon(Icons.check_circle, color: Color(0xFFFF5722))
           : null,
       onTap: () {
         provider.setAlertMode(mode);

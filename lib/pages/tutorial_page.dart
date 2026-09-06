@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:speedy/pages/home_shell.dart';
+import 'package:ignite/pages/home_shell.dart';
 
 class TutorialPage extends StatefulWidget {
   final bool isOnboarding;
@@ -32,10 +32,10 @@ class _TutorialPageState extends State<TutorialPage> {
 
   final List<TutorialStep> _steps = [
     TutorialStep(
-      title: 'Welcome to Speedy',
+      title: 'Welcome to Ignite Speedometer',
       description: 'Your premium companion for every journey. Track your speed with unmatched precision and style.',
       icon: Icons.speed_rounded,
-      color: Colors.blueAccent,
+      color: const Color(0xFFFF5722),
     ),
     TutorialStep(
       title: 'Real-time Precision',

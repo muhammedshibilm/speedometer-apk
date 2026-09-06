@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
 
-import 'package:speedy/pages/drive_page.dart';
-import 'package:speedy/pages/trips_page.dart';
-import 'package:speedy/pages/settings_page.dart';
+import 'package:ignite/pages/drive_page.dart';
+import 'package:ignite/pages/trips_page.dart';
+import 'package:ignite/pages/settings_page.dart';
 
 class HomeShell extends StatefulWidget {
   const HomeShell({super.key});
@@ -44,10 +44,10 @@ class _HomeShellState extends State<HomeShell> {
               },
               labelType: NavigationRailLabelType.all,
               backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-              selectedIconTheme: IconThemeData(color: Theme.of(context).brightness == Brightness.dark ? Colors.white : Colors.black),
+              selectedIconTheme: const IconThemeData(color: Color(0xFFFF5722)),
               unselectedIconTheme: const IconThemeData(color: Colors.grey),
-              selectedLabelTextStyle: TextStyle(
-                color: Theme.of(context).brightness == Brightness.dark ? Colors.white : Colors.black,
+              selectedLabelTextStyle: const TextStyle(
+                color: Color(0xFFFF5722),
                 fontWeight: FontWeight.bold,
               ),
               unselectedLabelTextStyle: const TextStyle(color: Colors.grey),
@@ -118,7 +118,7 @@ class _HomeShellState extends State<HomeShell> {
       ),
       bottomNavigationBar: Container(
         color: Theme.of(context).brightness == Brightness.dark 
-            ? const Color(0xFF101216) 
+            ? const Color(0xFF0A0A0C) 
             : Colors.white,
         padding: EdgeInsets.only(
           bottom: MediaQuery.of(context).padding.bottom + 8,
@@ -160,8 +160,8 @@ class _HomeShellState extends State<HomeShell> {
     final isSelected = _currentIndex == index;
     final isDark = Theme.of(context).brightness == Brightness.dark;
     
-    // Mockup active color is a bright cyan
-    final activeColor = Colors.cyanAccent.shade400;
+    // Ignite Speedometer active color — Flame Orange
+    const activeColor = Color(0xFFFF5722);
     final inactiveColor = isDark ? Colors.white38 : Colors.black38;
     
     return GestureDetector(
@@ -182,15 +182,18 @@ class _HomeShellState extends State<HomeShell> {
               opacity: isSelected ? 1.0 : 0.0,
               child: Container(
                 width: 40,
-                height: 2,
+                height: 3,
                 margin: const EdgeInsets.only(bottom: 8),
                 decoration: BoxDecoration(
-                  color: activeColor,
-                  boxShadow: [
+                  gradient: const LinearGradient(
+                    colors: [Color(0xFFFFAB00), Color(0xFFFF5722), Color(0xFFFF2A00)],
+                  ),
+                  borderRadius: BorderRadius.circular(2),
+                  boxShadow: const [
                     BoxShadow(
-                      color: activeColor.withValues(alpha: 0.5),
-                      blurRadius: 4,
-                      spreadRadius: 1,
+                      color: Color(0x88FF5722),
+                      blurRadius: 6,
+                      spreadRadius: 2,
                     )
                   ],
                 ),

@@ -129,12 +129,17 @@ class ThemeProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  // Futuristic Palette
-  static const Color neonBlue = Color(0xFF00F2FF);
-  static const Color neonPurple = Color(0xFFBC00FF);
-  static const Color neonPink = Color(0xFFFF00E5);
-  static const Color darkBg = Color(0xFF030303);
-  static const Color cardBgDark = Color(0xFF0D0D0D);
+  // Ignite Speedometer Fiery Icon Palette
+  static const Color flameOrange = Color(0xFFFF5722);
+  static const Color igniteRed = Color(0xFFFF2A00);
+  static const Color amberGold = Color(0xFFFFAB00);
+  static const Color darkBg = Color(0xFF0A0A0C);
+  static const Color cardBgDark = Color(0xFF141418);
+
+  // Backward compatibility / Theme Aliases
+  static const Color neonBlue = flameOrange;
+  static const Color neonPurple = igniteRed;
+  static const Color neonPink = amberGold;
 
   ThemeData get currentTheme {
     return isDarkMode ? darkTheme : lightTheme;
@@ -143,10 +148,11 @@ class ThemeProvider extends ChangeNotifier {
   static ThemeData get darkTheme => ThemeData(
         brightness: Brightness.dark,
         scaffoldBackgroundColor: darkBg,
-        primaryColor: neonBlue,
+        primaryColor: flameOrange,
         colorScheme: const ColorScheme.dark(
-          primary: neonBlue,
-          secondary: neonPurple,
+          primary: flameOrange,
+          secondary: igniteRed,
+          tertiary: amberGold,
           surface: cardBgDark,
         ),
         textTheme: const TextTheme(
@@ -158,11 +164,12 @@ class ThemeProvider extends ChangeNotifier {
 
   static ThemeData get lightTheme => ThemeData(
         brightness: Brightness.light,
-        scaffoldBackgroundColor: Colors.white,
-        primaryColor: Colors.blueAccent,
+        scaffoldBackgroundColor: const Color(0xFFF7F8FA),
+        primaryColor: flameOrange,
         colorScheme: ColorScheme.light(
-          primary: Colors.blueAccent,
-          secondary: Colors.deepPurpleAccent,
+          primary: flameOrange,
+          secondary: igniteRed,
+          tertiary: amberGold,
           surface: Colors.grey.shade100,
         ),
       );

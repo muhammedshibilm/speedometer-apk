@@ -4,11 +4,11 @@ import 'package:hive_flutter/hive_flutter.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:provider/provider.dart';
-import 'package:speedy/pages/home_shell.dart';
+import 'package:ignite/pages/home_shell.dart';
 
-import 'package:speedy/models/trip_model.dart';
-import 'package:speedy/providers/theme_provider.dart';
-import 'package:speedy/pages/tutorial_page.dart';
+import 'package:ignite/models/trip_model.dart';
+import 'package:ignite/providers/theme_provider.dart';
+import 'package:ignite/pages/tutorial_page.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 // New feature imports
@@ -97,12 +97,13 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
 
     return MaterialApp(
       debugShowCheckedModeBanner: false,
-      title: 'Speedy',
+      title: 'Ignite - GPS Speed Tracker',
       theme: ThemeData(
         brightness: Brightness.light,
-        scaffoldBackgroundColor: Colors.white,
+        primaryColor: ThemeProvider.flameOrange,
+        scaffoldBackgroundColor: const Color(0xFFF7F8FA),
         appBarTheme: const AppBarTheme(
-          backgroundColor: Colors.white,
+          backgroundColor: Color(0xFFF7F8FA),
           foregroundColor: Colors.black,
         ),
         textTheme: GoogleFonts.interTextTheme(
@@ -110,24 +111,25 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
         ),
         bottomNavigationBarTheme: const BottomNavigationBarThemeData(
           backgroundColor: Colors.white,
-          selectedItemColor: Colors.black,
+          selectedItemColor: ThemeProvider.flameOrange,
           unselectedItemColor: Colors.grey,
         ),
         useMaterial3: true,
       ),
       darkTheme: ThemeData(
         brightness: Brightness.dark,
+        primaryColor: ThemeProvider.flameOrange,
         appBarTheme: const AppBarTheme(
-          backgroundColor: Colors.black,
+          backgroundColor: ThemeProvider.darkBg,
           foregroundColor: Colors.white,
         ),
-        scaffoldBackgroundColor: Colors.black,
+        scaffoldBackgroundColor: ThemeProvider.darkBg,
         textTheme: GoogleFonts.interTextTheme(
           ThemeData.dark().textTheme,
         ),
         bottomNavigationBarTheme: const BottomNavigationBarThemeData(
-          backgroundColor: Colors.black,
-          selectedItemColor: Colors.white,
+          backgroundColor: ThemeProvider.cardBgDark,
+          selectedItemColor: ThemeProvider.flameOrange,
           unselectedItemColor: Colors.grey,
         ),
         useMaterial3: true,
