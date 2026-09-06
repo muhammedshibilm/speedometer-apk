@@ -1,4 +1,4 @@
-package tech.muhammedshibilm.ignite
+package tech.muhammedshibilm.speedy
 
 import io.flutter.embedding.android.FlutterActivity
 

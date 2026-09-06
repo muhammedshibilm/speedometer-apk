@@ -312,7 +312,7 @@ class _TripDetailPageState extends State<TripDetailPage>
           urlTemplate: _isSatellite
               ? 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'
               : 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-          userAgentPackageName: 'tech.muhammedshibilm.ignite',
+          userAgentPackageName: 'tech.muhammedshibilm.speedy',
         ),
 
         // Speed-colored polyline segments

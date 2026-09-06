@@ -1,4 +1,4 @@
-package tech.muhammedshibilm.ignite
+package tech.muhammedshibilm.speedy
 
 import android.appwidget.AppWidgetManager
 import android.content.Context
