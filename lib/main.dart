@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:provider/provider.dart';
 import 'package:ignite/pages/home_shell.dart';
 
@@ -17,9 +16,6 @@ import 'driving_behavior/behavior_provider.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-
-  // ads
-  await MobileAds.instance.initialize();
 
   // Init Hive – register ALL adapters before opening boxes
   await Hive.initFlutter();

@@ -11,13 +11,10 @@ import 'package:provider/provider.dart';
 import 'package:vibration/vibration.dart';
 import 'package:audioplayers/audioplayers.dart';
 
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:ignite/models/trip_model.dart';
 import 'package:ignite/providers/theme_provider.dart';
 import 'package:ignite/driving_behavior/behavior_provider.dart';
 import 'package:ignite/driving_behavior/behavior_event_model.dart';
-import 'package:ignite/driving_behavior/trip_score.dart';
-import 'package:home_widget/home_widget.dart';
 import 'package:sensors_plus/sensors_plus.dart';
 
 class DrivePage extends StatefulWidget {
@@ -30,7 +27,6 @@ class DrivePage extends StatefulWidget {
 class _DrivePageState extends State<DrivePage> {
   final GlobalKey _signalKey = GlobalKey();
   final GlobalKey _gaugeKey = GlobalKey();
-  final GlobalKey _hudKey = GlobalKey();
   final GlobalKey _startBtnKey = GlobalKey();
   final GlobalKey _limitKey = GlobalKey();
   final GlobalKey _themeKey = GlobalKey();
@@ -399,24 +395,6 @@ class _DrivePageState extends State<DrivePage> {
           severity: ev.severity,
         ));
       }
-    }
-
-    // Update Home Widget
-    try {
-      final score = summary?.driveScore ?? 100;
-      final label = TripScore.label(score);
-
-      await HomeWidget.saveWidgetData<String>('trip_score', score.toString());
-      await HomeWidget.saveWidgetData<String>('score_label', label);
-      await HomeWidget.saveWidgetData<String>(
-          'max_speed', maxSpeed.toStringAsFixed(0));
-      await HomeWidget.saveWidgetData<String>(
-          'distance', (_distance / 1000).toStringAsFixed(2));
-      await HomeWidget.saveWidgetData<String>(
-          'duration', _formatDuration(_tripDuration));
-      await HomeWidget.updateWidget(androidName: 'SpeedyWidgetProvider');
-    } catch (e) {
-      debugPrint('Error updating home widget: $e');
     }
 
     _lastBehaviorSummary = null;

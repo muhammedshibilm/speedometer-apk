@@ -3,7 +3,6 @@ import 'dart:ui' as imageUrl;
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:hive_flutter/hive_flutter.dart';
-import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:intl/intl.dart';
 import 'package:ignite/models/trip_model.dart';
 import 'package:ignite/driving_behavior/trip_score.dart';
@@ -17,32 +16,6 @@ class TripsPage extends StatefulWidget {
 }
 
 class _TripsPageState extends State<TripsPage> {
-  late BannerAd _bannerAd;
-  bool _isBannerLoaded = false;
-
-  @override
-  void initState() {
-    super.initState();
-
-    _bannerAd = BannerAd(
-      adUnitId: 'ca-app-pub-9959004005442539/2521212661',
-      size: AdSize.banner,
-      request: const AdRequest(),
-      listener: BannerAdListener(
-        onAdLoaded: (_) => setState(() => _isBannerLoaded = true),
-        onAdFailedToLoad: (ad, error) {
-          ad.dispose();
-        },
-      ),
-    )..load();
-  }
-
-  @override
-  void dispose() {
-    _bannerAd.dispose();
-    super.dispose();
-  }
-
   @override
   Widget build(BuildContext context) {
     final box = Hive.box<TripModel>('trips');
@@ -136,15 +109,6 @@ class _TripsPageState extends State<TripsPage> {
                   },
                 );
               },
-            ),
-          ),
-
-          /// BANNER AD
-          if (_isBannerLoaded)
-            SizedBox(
-              width: _bannerAd.size.width.toDouble(),
-              height: _bannerAd.size.height.toDouble(),
-              child: AdWidget(ad: _bannerAd),
             ),
         ],
       ),
